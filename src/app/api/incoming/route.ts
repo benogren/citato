@@ -1,8 +1,8 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextApiResponse } from 'next';
 import { IncomingMail } from 'cloudmailin';
 import { saveEmail } from '../../actions/saveEmail';
 
-export async function POST(req: Request, res: NextApiResponse) {
+export async function POST(req: Request) {
 
   const mail = await req.json() as IncomingMail;
 
