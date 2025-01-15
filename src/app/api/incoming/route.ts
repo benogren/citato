@@ -7,6 +7,7 @@ export async function POST(req: Request) {
 
   try {
     await saveEmail(JSON.parse(JSON.stringify(mail)));
+    console.log(JSON.parse(JSON.stringify(mail)));
     return Response.json(true);
   } catch (error) {
       console.error(error);
