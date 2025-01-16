@@ -28,6 +28,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <footer className="container mx-auto py-8 text-center text-sm text-gray-500">citato &copy; 2025 - All rights reserved</footer>
       </body>
     </html>
   );
