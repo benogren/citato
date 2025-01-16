@@ -2,15 +2,24 @@ import { IncomingMail } from 'cloudmailin';
 import { saveEmail } from '../../actions/saveEmail';
 
 export async function POST(req: Request) {
-
-  const mail = await req.json() as IncomingMail;
-
   try {
-    await saveEmail(JSON.parse(JSON.stringify(mail)));
-    console.log(JSON.parse(JSON.stringify(mail)));
+    // Parse the JSON payload from the request body
+    const rawBody = await req.text();
+    const mail = JSON.parse(rawBody) as IncomingMail;
+
+    // Log the required fields
+    // console.log('To:', mail.envelope.to);
+    // console.log('From:', mail.envelope.from);
+    // console.log('Subject:', mail.headers.subject);
+    // console.log('Plain Body:', mail.plain);
+    // console.log('HTML Body:', mail.html);
+
+    // Example of saving the email data
+    await saveEmail(mail);
+
     return Response.json(true);
   } catch (error) {
-      console.error(error);
-      return Response.json(false);
+    console.error('Error processing the email payload:', error);
+    return Response.json(false, { status: 500 });
   }
 }

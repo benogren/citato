@@ -1,34 +1,26 @@
-import { model, models, Schema } from "mongoose";
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export type Email = {
-    _id: string;
+interface emailDoc extends Document {
     from: string;
-    to: string;
+    to: string[];
     subject: string;
     plainText: string;
-    html: string;
+    htmlContent: string;
+    receivedDate: Date;
+    rawPayload: unknown;
 }
-const EmailSchema = new Schema({
-    from: {
-        type: String,
-        required: true
-    },
-    to: {
-        type: String,
-        required: true
-    },
-    subject: {
-        type: String,
-        required: true
-    },
-    plainText: {
-        type: String
-    },
-    html: {
-        type: String
-    }
+const emailSchema = new Schema<emailDoc>({
+    from: { type: String, required: true },
+    to: { type: [String], required: true },
+    subject: { type: String },
+    plainText: { type: String },
+    htmlContent: { type: String },
+    receivedDate: { type: Date },
+    rawPayload: { type: Schema.Types.Mixed }, // Store the full payload
 }, {
     timestamps: true
 });
 
-export const EmailModel = models?.Email || model('Email', EmailSchema);
+const EmailModel: Model<emailDoc> = mongoose.model<emailDoc>('Email', emailSchema);
+
+export default EmailModel;
