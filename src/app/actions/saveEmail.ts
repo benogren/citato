@@ -36,6 +36,7 @@ export async function saveEmail(mail: unknown): Promise<void> {
       await email.save();
       console.log('Email saved successfully');
     } catch (error) {
+      console.log(emailData);
       console.error('Error saving email:', error);
       throw error;
     }
