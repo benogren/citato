@@ -12,7 +12,7 @@ const MailSchema = z.object({
         date: z.string(),
     }),
     plain: z.string(),
-    html: z.string(),
+    html: z.string().nullable(),
 });
 
 //type Mail = z.infer<typeof MailSchema>;
@@ -25,20 +25,20 @@ export async function saveEmail(mail: unknown): Promise<void> {
         to: Array.isArray(parsedMail.envelope.to) ? parsedMail.envelope.to : [parsedMail.envelope.to],
         subject: parsedMail.headers.subject,
         plainText: parsedMail.plain,
-        htmlContent: parsedMail.html,
+        htmlContent: parsedMail.html ?? "",
         receivedDate: new Date(parsedMail.headers.date),
         rawPayload: parsedMail,
     };
   
     try {
     await mongoose.connect(process.env.MONGODB_URI as string);
-      console.log(parsedMail);
+      //console.log(parsedMail);
       const email = new EmailModel(emailData);
       await email.save();
       console.log('Email saved successfully');
     } catch (error) {
-      console.log(parsedMail);
-      console.error('Error saving email:', error, parsedMail);
+      //console.log(parsedMail);
+      console.error('Error saving email:', error);
       throw error;
     }
   }
