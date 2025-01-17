@@ -32,11 +32,12 @@ export async function saveEmail(mail: unknown): Promise<void> {
   
     try {
     await mongoose.connect(process.env.MONGODB_URI as string);
+      console.log(parsedMail);
       const email = new EmailModel(emailData);
       await email.save();
       console.log('Email saved successfully');
     } catch (error) {
-      console.log(emailData);
+      console.log(parsedMail);
       console.error('Error saving email:', error);
       throw error;
     }
