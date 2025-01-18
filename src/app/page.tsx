@@ -1,20 +1,7 @@
-import Link from 'next/link';
-import {
-  getSignInUrl,
-  getSignUpUrl,
-  withAuth,
-} from '@workos-inc/authkit-nextjs';
-import { redirect } from 'next/navigation';
 import { metadata } from './layout';
+import AuthButton from '@/components/header-auth';
 
 export default async function Home() {
-  const { user } = await withAuth();
-  const signInUrl = await getSignInUrl();
-  const signUpUrl = await getSignUpUrl();
-
-  if (user) {
-    redirect(`/home`);
-  }
 
   return (
     <>
@@ -27,12 +14,7 @@ export default async function Home() {
       </p>
         <>
         <nav className="flex gap-2 justify-center py-10">
-          <Link href={signInUrl} className="bg-gray-100 text-gray-700 py-2 px-4 rounded-md">
-            Log in
-          </Link>
-          <Link href={signUpUrl} className="bg-gray-100 text-gray-700 py-2 px-4 rounded-md">
-            Sign Up
-          </Link>
+          <AuthButton></AuthButton>
         </nav>
         </>
     </div>

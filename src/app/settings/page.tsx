@@ -1,21 +1,12 @@
-import { withAuth } from '@workos-inc/authkit-nextjs';
-import { redirect } from 'next/navigation';
-import Header from '../components/header';
 import Link from 'next/link';
-import { DataList, Badge, Flex, IconButton, Code } from '@radix-ui/themes';
 import { CopyIcon } from '@radix-ui/react-icons';
-import mongoose from 'mongoose';
-import { UserModel } from '../models/users';
+import { DataList, Badge, Flex, IconButton, Code } from '@radix-ui/themes';
+import Header from '../../components/header';
+import { createClient } from "@/utils/supabase/server";
 
-  export default async function SettingsPage() {
-    const { user } = await withAuth();
-
-    if (!user) {
-        redirect(`/?signin`);
-    }
-
-    await mongoose.connect(process.env.MONGODB_URI as string);
-    const findUser = await UserModel.findOne({ workosId: user?.id });
+export default async function SettingsPage() {
+    const supabase = await createClient();
+    const { data: { user }, } = await supabase.auth.getUser();
 
     return (
         <>
@@ -33,17 +24,18 @@ import { UserModel } from '../models/users';
                 <DataList.Item align="center">
                     <DataList.Label minWidth="88px">Email Verified</DataList.Label>
                     <DataList.Value>
-                        {user.emailVerified 
+                        {/* {user user.email_verified 
                         ? <Badge color="jade" variant="soft" radius="full">Yes</Badge> 
                         : <Badge color="ruby" variant="soft" radius="full">No</Badge>
-                        }
+                        } */}
+                        <Badge color="jade" variant="soft" radius="full">Yes</Badge> 
                     </DataList.Value>
                 </DataList.Item>
                 <DataList.Item>
                     <DataList.Label minWidth="88px">ID</DataList.Label>
                     <DataList.Value>
                         <Flex align="center" gap="2">
-                            <Code variant="ghost">{user.id}</Code>
+                            <Code variant="ghost">{user?.id}</Code>
                             <IconButton
                                 size="1"
                                 aria-label="Copy value"
@@ -57,12 +49,12 @@ import { UserModel } from '../models/users';
                 </DataList.Item>
                 <DataList.Item>
                     <DataList.Label minWidth="88px">Full Name</DataList.Label>
-                    <DataList.Value>{user.firstName}{' '}{user.lastName}</DataList.Value>
+                    <DataList.Value>{user?.user_metadata.first_name}{' '}{user?.user_metadata.last_name}</DataList.Value>
                 </DataList.Item>
                 <DataList.Item>
                     <DataList.Label minWidth="88px">Email</DataList.Label>
                     <DataList.Value>
-                        <Link href={'mailto:'+user.email}>{user.email}</Link>
+                        <Link href={'mailto:'+user?.email}>{user?.email}</Link>
                     </DataList.Value>
                 </DataList.Item>
                 <DataList.Item>
@@ -70,9 +62,9 @@ import { UserModel } from '../models/users';
                     <DataList.Value>
                         <Flex align="center" gap="2">
                             <Code variant="ghost" className='lowercase'>
-                                {findUser && (
+                                {/* {findUser && (
                                     findUser.emailSlug + '@subs.citato.ai'
-                                )}
+                                )} */}
                             </Code>
                             <IconButton
                                 size="1"
@@ -89,4 +81,4 @@ import { UserModel } from '../models/users';
         </div>
         </>
     );
-  }
+}
