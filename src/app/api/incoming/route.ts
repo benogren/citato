@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     // console.log('From:', mail.envelope.from);
     // console.log('Subject:', mail.headers.subject);
     // console.log('Plain Body:', mail.plain);
-    // console.log('HTML Body:', mail.html);
+    //console.log('set?:', mail.headers.message_id);
 
     // Example of saving the email data
     await saveEmail(mail);

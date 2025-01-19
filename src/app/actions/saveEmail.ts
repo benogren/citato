@@ -7,12 +7,23 @@ const MailSchema = z.object({
     envelope: z.object({
         from: z.string(),
         to: z.union([z.string(), z.array(z.string())]),
+        recipients: z.union([z.string(), z.array(z.string())]).nullable(),
+        helo_domain: z.string().nullable(),
+        spf: z.object({
+          result: z.string().nullable(),
+          domain: z.string().nullable(),
+        }),
     }),
     headers: z.object({
         subject: z.string(),
         date: z.string(),
+        message_id: z.string().nullable(),
+        received: z.string().nullable(),
+        from: z.string().nullable(),
+        to: z.string().nullable(),
     }),
     plain: z.string().nullable(),
+    reply_plain: z.string().nullable(),
     html: z.string().nullable(),
 });
 
@@ -23,12 +34,21 @@ export async function saveEmail(mail: unknown): Promise<void> {
 
     const emailData = {
         from: parsedMail.envelope.from,
+        headerFrom: parsedMail.headers.from,
         to: Array.isArray(parsedMail.envelope.to) ? parsedMail.envelope.to : [parsedMail.envelope.to],
+        headerTo: parsedMail.headers.to,
+        recipients: Array.isArray(parsedMail.envelope.recipients) ? parsedMail.envelope.recipients : [parsedMail.envelope.recipients],
+        helo_domain: parsedMail.envelope.helo_domain,
         subject: parsedMail.headers.subject,
         plainText: parsedMail.plain,
         htmlContent: parsedMail.html ?? "",
         receivedDate: new Date(parsedMail.headers.date),
+        reply_plain: parsedMail.reply_plain,
+        message_id: parsedMail.headers.message_id,
+        received: parsedMail.headers.received, 
         rawPayload: parsedMail,
+        spf_result: parsedMail.envelope.spf.result,
+        spf_domain: parsedMail.envelope.spf.domain,
     };
   
     try {
