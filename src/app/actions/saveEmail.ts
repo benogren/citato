@@ -12,7 +12,7 @@ const MailSchema = z.object({
         subject: z.string(),
         date: z.string(),
     }),
-    plain: z.string(),
+    plain: z.string().nullable(),
     html: z.string().nullable(),
 });
 
