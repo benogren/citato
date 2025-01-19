@@ -21,6 +21,7 @@ const emailSchema = new Schema<emailDoc>({
     timestamps: true
 });
 
-const EmailModel: Model<emailDoc> = mongoose.model<emailDoc>('Email', emailSchema);
+const EmailModel: Model<emailDoc> =
+    mongoose.models.Email || mongoose.model<emailDoc>('Email', emailSchema);
 
 export default EmailModel;

@@ -71,6 +71,11 @@ export default async function AuthButton() {
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      <form action={signOutAction}>
+                <Button type="submit" variant={"outline"} className="text-left w-full p-0 m-0 ml-1 border-none text-gray-500 font-normal">
+                  Sign out
+                </Button>
+              </form>
     </div>
   ) : (
     <div className="flex gap-2">

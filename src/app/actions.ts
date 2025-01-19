@@ -12,6 +12,7 @@ export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
   const first_name = formData.get("first_name")?.toString();
   const last_name = formData.get("last_name")?.toString();
+  // const tempUserSlug = first_name + '.' + last_name;
 
   if (!email || !password) {
     return encodedRedirect(

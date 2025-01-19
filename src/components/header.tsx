@@ -15,16 +15,6 @@ export default async function Header() {
       return redirect("/sign-in");
     }
 
-    //Check if user exists in the database
-    //await mongoose.connect(process.env.MONGODB_URI as string);
-    //const findUser = await UserModel.findOne({ workosId: user?.id });
-
-    // No User found in database, create a new user
-    // if (!findUser) {
-    //     const tempSlug = user?.firstName + '.' + user?.lastName;
-    //     await setUser({ userDocs: { workosId: user?.id, emailSlug: tempSlug.toLowerCase() } });
-    // }
-
     return (
         <header>
             <div className="container flex items-center justify-between mx-auto my-4">

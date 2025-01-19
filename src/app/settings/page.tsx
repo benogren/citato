@@ -7,11 +7,16 @@ import { createClient } from "@/utils/supabase/server";
 export default async function SettingsPage() {
     const supabase = await createClient();
     const { data: { user }, } = await supabase.auth.getUser();
-
+    const { data: user_profiles } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user?.id);
+        
     return (
         <>
         <Header />
-        <div className='container mx-auto my-12 bg-white p-8 rounded-lg shadow-md'>
+        {user_profiles && user_profiles.map((item) => (
+        <div className='container mx-auto my-12 bg-white p-8 rounded-lg shadow-md' key={item.id}>
             <DataList.Root>
             <DataList.Item align="center">
                     <DataList.Label minWidth="88px">Subscription</DataList.Label>
@@ -62,9 +67,7 @@ export default async function SettingsPage() {
                     <DataList.Value>
                         <Flex align="center" gap="2">
                             <Code variant="ghost" className='lowercase'>
-                                {/* {findUser && (
-                                    findUser.emailSlug + '@subs.citato.ai'
-                                )} */}
+                                {item.slug + '@subs.citato.ai'}
                             </Code>
                             <IconButton
                                 size="1"
@@ -79,6 +82,7 @@ export default async function SettingsPage() {
                 </DataList.Item>
             </DataList.Root>
         </div>
+        ))}
         </>
     );
 }
