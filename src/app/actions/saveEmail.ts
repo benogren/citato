@@ -1,7 +1,5 @@
 import z from 'zod';
 import { createClient } from '@supabase/supabase-js';
-import mongoose from 'mongoose';
-import EmailModel from '../models/emails';
 
 const MailSchema = z.object({
     envelope: z.object({
@@ -63,11 +61,6 @@ export async function saveEmail(mail: unknown): Promise<void> {
             .insert(emailData);
 
         console.log('Email saved to supabase', data);
-
-        await mongoose.connect(process.env.MONGODB_URI as string);
-        const mongo_email = new EmailModel(emailData);
-        await mongo_email.save();
-        console.log('Email saved to mongo');
 
         if (error) {
             throw error;
