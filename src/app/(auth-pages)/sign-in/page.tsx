@@ -8,8 +8,19 @@ import Link from "next/link";
 export default async function Login(props: { searchParams: Promise<Message> }) {
   const searchParams = await props.searchParams;
   return (
-    <form className="flex-1 flex flex-col min-w-64">
-      <h1 className="text-2xl font-medium">Sign in</h1>
+    <>
+    <p className="text-center mb-6">
+      <Link href={"/"} className="font-bold text-xl text-gray-600">citato.ai</Link>
+    </p>
+    <div className="h-screen flex items-centerflex justify-center items-center mx-auto max-w-80">
+      <div className="bg-gray-50 rounded-lg shadow-md p-10">
+      <FormMessage message={searchParams} />
+      <p className="text-center mb-6">
+      <Link href={"/"} className="font-bold text-xl text-gray-600 text-center">citato.ai</Link>
+      </p>
+      <hr/>
+      <form className="flex-1 flex flex-col min-w-64 mt-6">
+      <h1 className="text-lg font-medium">Sign in</h1>
       <p className="text-sm text-foreground">
         Don&apos;t have an account?{" "}
         <Link className="text-foreground font-medium underline" href="/sign-up">
@@ -34,11 +45,13 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
           placeholder="Your password"
           required
         />
-        <SubmitButton pendingText="Signing In..." formAction={signInAction}>
+        <SubmitButton pendingText="Signing In..." formAction={signInAction} className="bg-gray-600 text-white py-2 px-4 rounded-md">
           Sign in
         </SubmitButton>
-        <FormMessage message={searchParams} />
       </div>
     </form>
+      </div>
+    </div>
+    </>
   );
 }

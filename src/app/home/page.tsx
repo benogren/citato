@@ -25,17 +25,22 @@ export default async function HomePage() {
   return (
     <>
     <Header />
-    <div className='container mx-auto my-12 text-center'>
-      <h1 className='text-3xl font-bold'>Welcome, {user?.email}</h1>
+    <div className='container mx-auto'>
+      <h1 className='text-3xl font-bold mb-6'>Welcome, {user?.email}</h1>
+      <div className='flex flex-wrap'>
       {emailData && emailData.map((item) => (
-        <div className='bg-white p-8 rounded-lg shadow-md' key={item.id}>
-          <h2 className='text-xl font-bold'>
-            <Link href={`/read/${item.id}`}>{item.subject}</Link>
-            </h2>
-          <p className='text-sm text-gray-500'>{item.receivedDate}</p>
-          <p className='text-sm text-gray-500'>From: {item.from}</p>
-        </div>
+        <>
+       <div className='bg-gray-50 mr-4 mb-4 rounded-lg shadow-md' key={item.id}>
+        <p className='p-4'>
+          <Link href={`/read/${item.id}`}>{item.subject}</Link><br/>
+          <span className='text-xs'>
+          {item.receivedDate}
+          </span>
+        </p>
+       </div>
+        </>
       ))}
+      </div>
     </div>
     </>
   );

@@ -19,8 +19,15 @@ export default async function Signup(props: {
 
   return (
     <>
-      <form className="flex flex-col min-w-64 max-w-64 mx-auto">
-        <h1 className="text-2xl font-medium">Sign up</h1>
+    <div className="h-screen flex items-centerflex justify-center items-center m-auto">
+      <div className="bg-gray-50 rounded-lg shadow-md p-10 max-w-80">
+        <FormMessage message={searchParams} />
+        <p className="text-center mb-6">
+        <Link href={"/"} className="font-bold text-xl text-gray-600 text-center">citato.ai</Link>
+        </p>
+        <hr/>
+        <form className="flex-1 flex flex-col min-w-64 mt-6">
+        <h1 className="text-lg font-medium">Sign up</h1>
         <p className="text-sm text text-foreground">
           Already have an account?{" "}
           <Link className="text-primary font-medium underline" href="/sign-in">
@@ -42,12 +49,14 @@ export default async function Signup(props: {
             minLength={6}
             required
           />
-          <SubmitButton formAction={signUpAction} pendingText="Signing up...">
+          <SubmitButton formAction={signUpAction} pendingText="Signing up..." className="bg-gray-600 text-white py-2 px-4 rounded-md">
             Sign up
           </SubmitButton>
-          <FormMessage message={searchParams} />
         </div>
       </form>
+      </div>
+    </div>
+      
     </>
   );
 }

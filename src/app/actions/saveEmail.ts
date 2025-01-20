@@ -1,5 +1,5 @@
 import z from 'zod';
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 import mongoose from 'mongoose';
 import EmailModel from '../models/emails';
 
@@ -10,15 +10,15 @@ const MailSchema = z.object({
         recipients: z.union([z.string(), z.array(z.string())]).nullable(),
         helo_domain: z.string().nullable(),
         spf: z.object({
-          result: z.string().nullable(),
-          domain: z.string().nullable(),
+            result: z.string().nullable(),
+            domain: z.string().nullable(),
         }),
     }),
     headers: z.object({
         subject: z.string(),
         date: z.string(),
         message_id: z.string().nullable(),
-        received: z.string().nullable(),
+        received: z.union([z.string(), z.array(z.string())]).nullable(),
         from: z.string().nullable(),
         to: z.string().nullable(),
     }),
@@ -26,8 +26,6 @@ const MailSchema = z.object({
     reply_plain: z.string().nullable(),
     html: z.string().nullable(),
 });
-
-//type Mail = z.infer<typeof MailSchema>;
 
 export async function saveEmail(mail: unknown): Promise<void> {
     const parsedMail = MailSchema.parse(mail);
@@ -45,36 +43,37 @@ export async function saveEmail(mail: unknown): Promise<void> {
         receivedDate: new Date(parsedMail.headers.date),
         reply_plain: parsedMail.reply_plain,
         message_id: parsedMail.headers.message_id,
-        received: parsedMail.headers.received, 
+        received: Array.isArray(parsedMail.headers.received) 
+            ? parsedMail.headers.received.join(', ') 
+            : parsedMail.headers.received,
         rawPayload: parsedMail,
         spf_result: parsedMail.envelope.spf.result,
         spf_domain: parsedMail.envelope.spf.domain,
     };
   
     try {
-      //Save to Supabase
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL as string, 
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-      );
+        // Save to Supabase
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL as string, 
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+        );
 
-      const {data, error } = await supabase
-      .from('emails')
-      .insert(emailData);
-      console.log('Email saved to supabase', data);
+        const { data, error } = await supabase
+            .from('emails')
+            .insert(emailData);
 
-      await mongoose.connect(process.env.MONGODB_URI as string);
-      const mongo_email = new EmailModel(emailData);
-      await mongo_email.save();
-      console.log('Email saved to mongo');
+        console.log('Email saved to supabase', data);
 
-      if (error) {
-        throw error;
-      }
- 
+        await mongoose.connect(process.env.MONGODB_URI as string);
+        const mongo_email = new EmailModel(emailData);
+        await mongo_email.save();
+        console.log('Email saved to mongo');
+
+        if (error) {
+            throw error;
+        }
     } catch (error) {
-      //console.log(parsedMail);
-      console.error('Error saving email:', error);
-      throw error;
+        console.error('Error saving email:', error);
+        throw error;
     }
-  }
+}
