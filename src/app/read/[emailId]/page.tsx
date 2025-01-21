@@ -1,4 +1,3 @@
-// src/app/read/[emailId]/page.tsx (Server Component)
 import Header from '../../../components/header';
 import { createClient } from "@/utils/supabase/server";
 import ReadEmailClient from './ReadEmailClient';

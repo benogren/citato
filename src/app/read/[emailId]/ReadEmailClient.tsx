@@ -62,7 +62,7 @@ export default function ReadEmailClient({ posts }: { posts: Post[] }) {
                         <div className="flex flex-col w-1/4 m-4">
                             <h2 className="font-bold border-b-2 border-gray-200 text-gray-500 text-base">Chat:</h2>
                             <div className="text-xs whitespace-normal truncate">
-                                <pre>{JSON.stringify(post, null, 2)}</pre>
+                                
                             </div>
                         </div>
                     </div>
