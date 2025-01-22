@@ -55,7 +55,7 @@ export default async function newsletterPage(props: { params: paramsType }) {
     return (
         <>
         <Header />
-        <div className="container mx-auto">
+        <div className="container mx-auto" key={newsletterId}>
             {newsletterDoc && newsletterDoc.map((news) => (
             <>
             <h1 className='text-3xl font-bold py-16 flex items-center' key={news.id}>
