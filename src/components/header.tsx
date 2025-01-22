@@ -18,7 +18,7 @@ export default async function Header() {
     return (
         <header>
             <div className="container flex items-center justify-between mx-auto my-4">
-                <Link href={"/"} className="font-bold text-xl text-gray-600">citato.ai</Link>
+                <Link href={"/"} className="font-bold text-xl text-gray-600 no-underline">citato.ai</Link>
                 <nav className="flex gap-2">
                     <AuthButton ></AuthButton>
                 </nav>

@@ -1,25 +1,51 @@
 import Header from '../../../components/header';
 import { createClient } from "@/utils/supabase/server";
-import ReadEmailClient from './ReadEmailClient';
 
 export type paramsType = Promise<{ emailId: string }>;
 
-export default async function ReadEmailPage(props: { params: paramsType }) {
-    const { emailId } = await props.params;
+async function fetchEmail(emailId: string) {
+    console.log('Fetching newsletter:', emailId);
     const supabase = await createClient();
-    const { data: posts } = await supabase
+    const { data, error } = await supabase
         .from('emails')
         .select('*')
         .eq('id', emailId);
 
-    if (!posts || posts.length === 0) {
-        return <p>No posts found.</p>;
+    if (error) {
+        console.error('Error fetching data:', error);
+        return null;
     }
+
+    return data;
+}
+
+export default async function ReadEmailPage(props: { params: paramsType }) {
+    const { emailId } = await props.params;
+    const emailDoc = await fetchEmail(emailId);
 
     return (
         <>
             <Header />
-            <ReadEmailClient posts={posts} />
+            <div className="bg-gray-100">
+                <div className="container mx-auto">
+                    <div className="flex flex-row">
+                        <div className="flex flex-col">
+                            {emailDoc && await Promise.all(emailDoc.map(async (item) => {
+                                return (
+                                <div className="bg-white shadow-lg rounded-md text-wrap whitespace-normal text-sm p-6 my-8" key={item.id}>
+                                <div className=""
+                                    dangerouslySetInnerHTML={{ __html: item.htmlContent }}
+                                />
+                                </div>
+                                )
+                            }))}
+                        </div>
+                        <div className="flex flex-col grow m-8">
+                            to do...
+                        </div>
+                    </div>
+                </div>
+            </div>
         </>
     );
 }
