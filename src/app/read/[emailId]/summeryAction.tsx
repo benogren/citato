@@ -21,7 +21,7 @@ export default async function summeryAction(formData: FormData): Promise<void> {
             messages: [
                 { 
                     role: "system", 
-                    content: "You will be provided newsletter content, and your task is to summarize the content, matching the style of the content's original author as follows:\n    \n    -Summary\n    -Key Takeaways\n " 
+                    content: "You will be provided newsletter content, and your task is to summarize the content in markdown, matching the style of the content's original author as follows:\n    \n    ###Summary\n    ###Key Takeaways\n     ###Links to Read Later(pull out any interesting links from the article's content)\n " 
                 },
                 {
                     role: "user",
