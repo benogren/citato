@@ -1,8 +1,26 @@
 import Link from 'next/link';
-import { CopyIcon } from '@radix-ui/react-icons';
-import { DataList, Badge, Flex, IconButton, Code } from '@radix-ui/themes';
+// import { CopyIcon } from '@radix-ui/react-icons';
+import { DataList, Badge, Flex, Code } from '@radix-ui/themes';
 import Header from '../../components/header';
 import { createClient } from "@/utils/supabase/server";
+
+async function fetchGoogle(pageUserId: string) {
+    const googleTeam = "09524579-5fbf-451b-8499-2d011b8e1536"
+    const supabase = await createClient();
+    const { data, error } = await supabase
+    .from('emails')
+      .select('*')
+    .eq('userID', pageUserId)
+    .eq('sender_id', googleTeam)
+    .limit(1);
+  
+    if (error) {
+      console.error('Error fetching data:', error);
+      return null;
+    }
+  
+    return data;
+  }
 
 export default async function SettingsPage() {
     const supabase = await createClient();
@@ -11,7 +29,9 @@ export default async function SettingsPage() {
         .from('user_profiles')
         .select('*')
         .eq('id', user?.id);
-        
+
+    const userGoogle = await fetchGoogle(user?.id as string);
+
     return (
         <>
         <Header />
@@ -41,14 +61,14 @@ export default async function SettingsPage() {
                     <DataList.Value>
                         <Flex align="center" gap="2">
                             <Code variant="ghost">{user?.id}</Code>
-                            <IconButton
+                            {/* <IconButton
                                 size="1"
                                 aria-label="Copy value"
                                 color="gray"
                                 variant="ghost"
                             >
                                 <CopyIcon />
-                            </IconButton>
+                            </IconButton> */}
                         </Flex>
                     </DataList.Value>
                 </DataList.Item>
@@ -69,20 +89,50 @@ export default async function SettingsPage() {
                             <Code variant="ghost" className='lowercase'>
                                 {item.slug + '@subs.citato.ai'}
                             </Code>
-                            <IconButton
+                            {/* <IconButton
                                 size="1"
                                 aria-label="Copy value"
                                 color="gray"
                                 variant="ghost"
                             >
                                 <CopyIcon />
-                            </IconButton>
+                            </IconButton> */}
                         </Flex>
                     </DataList.Value>
                 </DataList.Item>
             </DataList.Root>
         </div>
         ))}
+        {userGoogle && userGoogle.length > 0 ? (
+            userGoogle.map((item) => (
+            <>   
+        <div className='container mx-auto my-12 bg-white p-8 rounded-lg shadow-md bg-gray-100' key={item.id}>
+        <div className='my-4'>
+        <h2 className='my-4 font-bold text-gray-600'>Google Verification:</h2> 
+        <hr/>
+        </div>
+            <div className="whitespace-break-spaces"
+                dangerouslySetInnerHTML={{ __html: item.plainText }}
+            />
+        </div>
+        </>
+        ))
+        ) : (
+            <div className='container mx-auto my-12 bg-white p-8 rounded-lg shadow-md bg-gray-100'>
+            <div className='my-4'>
+            <h2 className='my-4 font-bold text-gray-600'>Google Verification Steps:</h2> 
+            <hr/>
+            </div>
+                <ol>
+                    <li>Log into your google account.</li>
+                    <li>Follow the link to Forwarding and POP/IMAP.</li>
+                    <li>Click the Add a forwarding address button.</li>
+                    <li>Enter your Citato forward email address and click next.</li>
+                    <li>An email will be sent to your Citato forward email address address for verification. To view the email come back to this page.</li>
+                    <li>Begin forwarding messages that match your filters – Follow instructions <Link href={'https://support.google.com/mail/answer/10957?hl=en}>https://support.google.com/mail/answer/10957?hl=en'} className='underline'>found here</Link></li>
+                </ol>
+            </div>
+        )}
         </>
     );
 }

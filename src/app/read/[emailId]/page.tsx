@@ -59,7 +59,6 @@ export default async function ReadEmailPage(props: { params: paramsType }) {
                                 className="whitespace-normal text-sm *:text-gray-600 *:pb-4 [&_li]:pb-2" 
                                 dangerouslySetInnerHTML={{ __html: Marked.parse(item.ai_summary) }}
                                 />
-                                // <p>{item.ai_summary}</p>
                             ) : (
                                 <form>
                                     {/* <p className='text-sm text-gray-600'><strong>Generate a Summary</strong></p> */}
