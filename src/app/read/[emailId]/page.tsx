@@ -5,6 +5,9 @@ import summeryAction from './summeryAction';
 import { SubmitButton } from '@/components/submit-button';
 import { Marked, Renderer } from '@ts-stack/markdown';
 import RenderHTML from './RenderHTML';
+//import TextToSpeech from '@/components/text-to-speech';
+//import { scrapeEmailContent } from './emailScraper';
+
 
 export type paramsType = Promise<{ emailId: string }>;
 
@@ -38,6 +41,13 @@ async function fetchEmail(emailId: string) {
 export default async function ReadEmailPage(props: { params: paramsType }) {
     const { emailId } = await props.params;
     const emailDoc = await fetchEmail(emailId);
+    
+    if (!emailDoc) {
+        return <div>No email found for this ID.</div>;
+    }
+
+    //const scrapedData = await scrapeEmailContent(emailDoc);
+    //const toSpeech = JSON.stringify(scrapedData[0].extractedContent.paragraphs);
 
     return (
         <>
@@ -54,6 +64,8 @@ export default async function ReadEmailPage(props: { params: paramsType }) {
                                         </div>
                                     </div>
                                     <div className="flex flex-col m-8 pl-8 w-1/4">
+                                        {/* <TextToSpeech textValue={toSpeech || ""}/> */}
+
                                         {item.ai_summary ? (
                                             <div
                                                 key={`${item.id}-summary`}
@@ -63,6 +75,21 @@ export default async function ReadEmailPage(props: { params: paramsType }) {
                                                 }}
                                             />
                                         ) : (
+                                            <>
+                                            {item.roundup_summary ? (
+                                                <>
+                                                <h3 className='pb-2 font-semibold text-sm'>Short Summary</h3>
+                                                <div
+                                                    key={`${item.id}-summary`}
+                                                    className="whitespace-normal text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline"
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: Marked.parse(item.roundup_summary),
+                                                    }}
+                                                />
+                                                </>
+                                            ) : (
+                                                <span></span>
+                                            )}
                                             <form key={`${item.id}-form`}>
                                                 <Input
                                                     className="hidden"
@@ -81,9 +108,10 @@ export default async function ReadEmailPage(props: { params: paramsType }) {
                                                     formAction={summeryAction}
                                                     className="bg-gray-600 text-white py-2 px-4 rounded-md"
                                                 >
-                                                    Generate Summary
+                                                    Generate Full Summary
                                                 </SubmitButton>
                                             </form>
+                                            </>
                                         )}
                                     </div>
                                 </div>

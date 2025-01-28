@@ -12,6 +12,7 @@ async function fetchGoogle(pageUserId: string) {
       .select('*')
     .eq('userID', pageUserId)
     .eq('sender_id', googleTeam)
+    .order('created_at', { ascending: false })
     .limit(1);
   
     if (error) {

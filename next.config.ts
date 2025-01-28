@@ -1,21 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
-
-module.exports = {
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'workoscdn.com',
+        hostname: 'images.unsplash.com',
         port: '',
-        pathname: '/images/**',
-        search: '',
+        pathname: '/**',
       },
     ],
   },
-}
+  // Add any other config options here
+};
 
 export default nextConfig;
