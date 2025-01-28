@@ -1,5 +1,7 @@
 "use client";
 
+import { faCirclePause, faCirclePlay, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import React, { useState } from "react";
 
 interface TextToSpeechProps {
@@ -78,14 +80,15 @@ const TextToSpeech: React.FC<TextToSpeechProps> = ({ textValue }) => {
     };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="space-y-4">
+        <div className="flex">
+            <div className="">
                 <div>
-                    <label className="block text-sm font-medium mb-2">Select Voice</label>
+                    {/* <label className="block text-sm font-medium mb-2">Select Voice</label> */}
                     <select
                         value={selectedVoice}
                         onChange={(e) => setSelectedVoice(e.target.value)}
-                        className="w-full p-2 border rounded-md"
+                        className=""
+                        hidden
                     >
                         {voices.map((voice) => (
                             <option key={voice.id} value={voice.id}>
@@ -94,31 +97,33 @@ const TextToSpeech: React.FC<TextToSpeechProps> = ({ textValue }) => {
                         ))}
                     </select>
                 </div>
-                <div>
+                {/* <div>
                     <label className="block text-sm font-medium mb-2">Text</label>
-                </div>
+                </div> */}
 
                 {error && <div className="text-red-500">{error}</div>}
 
-                <div className="flex gap-2">
+                <div className="">
+                {!audioElement && (
                     <button
                         onClick={handleGenerateAudio}
                         disabled={isGenerating || !text.trim()}
-                        className={`flex-1 px-4 py-2 rounded-md text-white ${
+                        className={`text-white py-2 px-4  ${
                             isGenerating || !text.trim()
-                                ? "bg-gray-400"
-                                : "bg-blue-500 hover:bg-blue-600"
+                                ? ""
+                                : ""
                         }`}
                     >
-                        {isGenerating ? "Generating..." : "Generate Audio"}
+                        {isGenerating ? <FontAwesomeIcon icon={faSpinner} className="animate-spin"/> : <FontAwesomeIcon icon={faCirclePlay}/>}
                     </button>
+                )}
 
                     {audioElement && (
                         <button
                             onClick={handlePlayPause}
-                            className="px-4 pt-2 border rounded-md hover:bg-gray-100"
+                            className="px-4 pt-2"
                         >
-                            {isPlaying ? "Pause" : "Play"}
+                            {isPlaying ? <FontAwesomeIcon icon={faCirclePause}/> : <FontAwesomeIcon icon={faCirclePlay}/>}
                         </button>
                     )}
                 </div>

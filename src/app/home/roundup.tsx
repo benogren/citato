@@ -8,6 +8,7 @@ import roundupAction from "./roundupAction";
 import { faFrownOpen } from "@fortawesome/free-regular-svg-icons"; 
 import { faMagicWandSparkles } from "@fortawesome/free-solid-svg-icons"; 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import TextToSpeech from '@/components/text-to-speech';
 
 // Define the type for the roundup items
 type RoundupItem = {
@@ -135,19 +136,20 @@ export default function RoundUp({ pageUserId }: { pageUserId: string }) {
               />
               <div className="absolute inset-x-[15%] bottom-5 hidden py-5 text-white md:block">
                 <h5 className="text-xl font-medium">{item.subject || "No subject"}</h5>
-                <h6 className="text-md pb-4">
+                <h6 className="text-xs pb-4">
                   <Link href={`/newsletter/${item.newsletter_senders.id}`}>
                     {item.newsletter_senders.name || "no name"}
                   </Link>
                 </h6>
-                <p className="pb-6">{item.roundup_summary || "No content available"}</p>
-                <div className="pb-6">
-                <Link
-                  href={`/read/${item.id}`}
-                  className="text-white py-2 px-4 border rounded-md"
-                >
-                  Read More
-                </Link>
+                <p className="pb-6 text-sm">{item.roundup_summary || "No content available"}</p>
+                <div className="pb-6 flex gap-2">
+                    <Link
+                    href={`/read/${item.id}`}
+                    className="text-white py-2 px-4 border rounded-md"
+                    >
+                    Read More
+                    </Link>
+                    <TextToSpeech textValue={item.roundup_summary || ""}/>
                 </div>
               </div>
             </TECarouselItem>
