@@ -15,7 +15,11 @@ async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback`,
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+      },
     },
   });
 
@@ -110,6 +114,13 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
             </SubmitButton>
           </div>
         </form>
+
+        <div className="mt-8 text-center text-sm text-gray-500">
+          By signing in, you agree to our{" "}
+          <Link href="/privacy" className="underline hover:text-gray-700">
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </div>
     </>

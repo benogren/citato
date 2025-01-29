@@ -115,6 +115,13 @@ export default async function Signup(props: {
             </SubmitButton>
           </div>
         </form>
+
+        <div className="mt-8 text-center text-sm text-gray-500">
+          By signing up, you agree to our{" "}
+          <Link href="/privacy" className="underline hover:text-gray-700">
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </div>  
     </>

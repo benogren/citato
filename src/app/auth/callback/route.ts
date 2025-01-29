@@ -12,13 +12,31 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    
+    // Exchange the code for a session
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    if (error) {
+      console.error('Auth error:', error);
+      return NextResponse.redirect(`${origin}/sign-in?error=${error.message}`);
+    }
+
+    if (!data.session) {
+      console.error('No session established');
+      return NextResponse.redirect(`${origin}/sign-in?error=Could not establish session`);
+    }
+
+    // Set the session cookie
+    const response = NextResponse.redirect(
+      redirectTo ? `${origin}${redirectTo}` : `${origin}/home`
+    );
+
+    // Set auth cookie
+    await supabase.auth.setSession(data.session);
+
+    return response;
   }
 
-  if (redirectTo) {
-    return NextResponse.redirect(`${origin}${redirectTo}`);
-  }
-
-  // URL to redirect to after sign up process completes
-  return NextResponse.redirect(`${origin}/home`);
+  // If no code or session establishment failed, redirect to sign-in
+  return NextResponse.redirect(`${origin}/sign-in?error=No code provided`);
 }
