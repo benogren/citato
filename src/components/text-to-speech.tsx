@@ -80,7 +80,7 @@ const TextToSpeech: React.FC<TextToSpeechProps> = ({ textValue }) => {
     };
 
     return (
-        <div className="flex">
+        <div className="">
             <div className="">
                 <div>
                     {/* <label className="block text-sm font-medium mb-2">Select Voice</label> */}

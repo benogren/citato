@@ -39,7 +39,8 @@ async function fetchToday(pageUserId: string): Promise<RoundupItem[] | null> {
         .eq("userID", pageUserId)
         .gte("created_at", startOfDay.toISOString())
         .lt("created_at", endOfDay.toISOString())
-        .not("sender_id", "eq", googleTeam);
+        .not("sender_id", "eq", googleTeam)
+        .order('created_at', { ascending: false });
 
     if (error) {
         console.error("Error fetching emails:", error);
