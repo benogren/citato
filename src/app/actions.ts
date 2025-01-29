@@ -5,6 +5,22 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+async function checkExistingUser(email: string) {
+  const supabase = await createClient();
+  const { data: users, error } = await supabase
+    .from('auth.users')  // or your users table
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error checking existing user:', error);
+    return null;
+  }
+
+  return users;
+}
+
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();
@@ -19,6 +35,15 @@ export const signUpAction = async (formData: FormData) => {
       "error",
       "/sign-up",
       "Email and password are required",
+    );
+  }
+
+  const existingUser = await checkExistingUser(email);
+  if (existingUser) {
+    return encodedRedirect(
+      "error",
+      "/sign-up",
+      "An account with this email already exists. Please sign in instead.",
     );
   }
 
@@ -138,4 +163,25 @@ export const signOutAction = async () => {
   const supabase = await createClient();
   await supabase.auth.signOut();
   return redirect("/sign-in");
+};
+
+export const handleGoogleAuth = async () => {
+  'use server'
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+      },
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+    },
+  });
+
+  if (error) {
+    return redirect('/sign-in?error=' + error.message);
+  }
+
+  return redirect(data.url);
 };
