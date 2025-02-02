@@ -3,6 +3,8 @@ import Header from '../../components/header';
 import { createClient } from "@/utils/supabase/server";
 import TimeAgo from '@/components/time-ago';
 import RoundUp from './roundup';
+//import { getTodaysSubscribedEmails } from './gmailroundup';
+//import SubscriptionEmails from './SubscriptionEmails';
 
 async function fetchSubData(pageUserId: string) {
   const supabase = await createClient();
@@ -37,6 +39,7 @@ export default async function HomePage() {
   }
 
   const userSubs = await fetchSubData(user.id);
+  //const getsubscriptionEmails = await getTodaysSubscribedEmails(user.id);
   //const userName = user.user_metadata?.first_name || "User";
 
   return (
@@ -45,7 +48,12 @@ export default async function HomePage() {
       <div className="container mx-auto">
         <h1 className="text-3xl font-bold py-16">Welcome to Citato</h1>
 
-        {/* User Roundup Section */}
+        {/* <h2 className="text-2xl font-normal pb-4">Today&#39;s Roundup (Gmail)</h2>
+        <hr />
+        <div className="pb-10 pt-6">
+          <SubscriptionEmails emails={getsubscriptionEmails} />
+        </div> */}
+
         <h2 className="text-2xl font-normal pb-4">Today&#39;s Roundup</h2>
         <hr />
         <div className="pb-10 pt-6">

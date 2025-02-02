@@ -15,7 +15,12 @@ async function signInWithGoogle() {
     provider: 'google',
     options: {
       redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-    },
+      scopes: 'https://www.googleapis.com/auth/gmail.readonly',
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent'
+      }
+    }
   });
 
   if (error) {
