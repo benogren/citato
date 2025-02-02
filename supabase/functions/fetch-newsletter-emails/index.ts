@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
-import { google } from "https://esm.sh/v128/googleapis@129.0.0"
-import { OAuth2Client } from "https://esm.sh/v128/google-auth-library@9.4.1"
-import OpenAI from "https://esm.sh/openai@4.24.1"
+import { google } from "https://esm.sh/googleapis@126.0.1"
+import { OAuth2Client } from "https://esm.sh/google-auth-library@9.0.0"
+import OpenAI from "https://esm.sh/openai@4.20.1"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -133,9 +133,81 @@ serve(async (req: Request) => {
         }
 
         console.log(`Found ${response.data.messages.length} messages for user ${userId}`)
-        
-        // Process messages...
-        // Rest of your email processing code here
+
+        // Process each message
+        for (const message of response.data.messages) {
+          const fullMessage = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id,
+            format: 'full'
+          })
+
+          const headers = fullMessage.data.payload?.headers
+          const from = headers?.find(h => h.name === 'From')?.value || ''
+          const subject = headers?.find(h => h.name === 'Subject')?.value || ''
+          const date = headers?.find(h => h.name === 'Date')?.value
+
+          // Parse from field
+          const fromMatch = from.match(/^(?:"?([^"]*)"?\s*)?(?:<([^>]+)>|([^\s]+@[^\s]+))$/)
+          const fromName = fromMatch?.[1]?.trim() || ''
+          const fromEmail = (fromMatch?.[2] || fromMatch?.[3])?.trim() || ''
+
+          // Get both HTML and plain text parts
+          const htmlPart = findPartByMimeType(fullMessage.data.payload, 'text/html')
+          const plainPart = findPartByMimeType(fullMessage.data.payload, 'text/plain')
+
+          let htmlBody = ''
+          let plainText = ''
+
+          if (htmlPart?.body?.data) {
+            htmlBody = atob(htmlPart.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+          }
+          
+          if (plainPart?.body?.data) {
+            plainText = atob(plainPart.body.data.replace(/-/g, '+').replace(/_/g, '/'))
+          }
+
+          // Extract content for AI summary
+          const paragraphs = plainText.split('\n\n').filter(p => p.trim().length > 0)
+          const toSummarize = JSON.stringify(paragraphs)
+
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4-turbo-preview",
+            messages: [
+              {
+                role: "system",
+                content: "You will be provided newsletter content, and your task is to summarize the content in a short paragraph",
+              },
+              {
+                role: "user",
+                content: toSummarize,
+              },
+            ],
+          })
+
+          const contentSummary = completion.choices[0].message.content
+
+          // Insert into database
+          const { error: insertError } = await supabase
+            .from('newsletter_emails')
+            .upsert({
+              user_id: userId,
+              message_id: message.id,
+              from_email: fromEmail,
+              from_name: fromName,
+              subject,
+              received_at: date,
+              html_body: htmlBody,
+              plain_text: plainText,
+              ai_summary: contentSummary
+            }, {
+              onConflict: 'user_id,message_id'
+            })
+
+          if (insertError) {
+            console.error('Error inserting email:', insertError)
+          }
+        }
       } catch (error) {
         console.error(`Error processing user ${userId}:`, error)
       }
@@ -162,3 +234,17 @@ serve(async (req: Request) => {
     )
   }
 })
+
+// Helper function to find parts by mimeType
+function findPartByMimeType(part: any, mimeType: string): any {
+  if (part.mimeType === mimeType) {
+    return part
+  }
+  if (part.parts) {
+    for (const subPart of part.parts) {
+      const found = findPartByMimeType(subPart, mimeType)
+      if (found) return found
+    }
+  }
+  return null
+}
