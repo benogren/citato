@@ -12,23 +12,30 @@ const corsHeaders = {
 serve(async (req: Request) => {
   console.log("Function started")
   
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Check for cron invocation
-  const authHeader = req.headers.get('authorization')
-  const cronKey = Deno.env.get('CRON_KEY')
-  if (!authHeader || !authHeader.includes(cronKey || '')) {
-    console.error('Unauthorized request')
-    return new Response('Unauthorized', {
-      status: 401,
-      headers: corsHeaders
-    })
-  }
-
   try {
+    // Check authorization
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader) {
+      throw new Error('Missing authorization header')
+    }
+
+    // Allow either JWT or CRON_KEY
+    const cronKey = Deno.env.get('CRON_KEY')
+    const isValidCronKey = authHeader === `Bearer ${cronKey}`
+    const isValidJWT = authHeader.startsWith('Bearer')
+
+    if (!isValidCronKey && !isValidJWT) {
+      console.error('Invalid authorization')
+      return new Response('Unauthorized', {
+        status: 401,
+        headers: corsHeaders
+      })
+    }
+
     // Verify environment variables
     const requiredEnvVars = [
       'SUPABASE_URL',
