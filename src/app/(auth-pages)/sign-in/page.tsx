@@ -1,8 +1,8 @@
-import { signInAction } from "@/app/actions";
+// import { signInAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+// import { SubmitButton } from "@/components/submit-button";
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
@@ -28,16 +28,16 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
         <div className="flex justify-center pb-4">
         <GoogleSignIn />
         </div>
-        <div className="relative mb-6">
+        {/* <div className="relative mb-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300"></div>
           </div>
           <div className="relative flex justify-center text-sm">
             <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
           </div>
-        </div>
+        </div> */}
 
-        <form className="flex-1 flex flex-col min-w-64">
+        {/* <form className="flex-1 flex flex-col min-w-64">
           <h1 className="text-lg font-medium">Sign in</h1>
           <p className="text-sm text-foreground">
             Don&apos;t have an account?{" "}
@@ -67,9 +67,9 @@ export default async function Login(props: { searchParams: Promise<Message> }) {
               Sign in
             </SubmitButton>
           </div>
-        </form>
+        </form> */}
 
-        <div className="mt-8 text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-gray-500">
           By signing in, you agree to our{" "}
           <Link href="/privacy" className="underline hover:text-gray-700">
             Privacy Policy
