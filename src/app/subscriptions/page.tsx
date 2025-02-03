@@ -64,6 +64,15 @@ const LoadingState = () => (
   </div>
 );
 
+const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+  <div className="flex flex-col items-center justify-center min-h-screen p-4">
+    <div className="mb-4 p-4 bg-red-50 text-red-600 rounded-md max-w-md">
+      {message}
+    </div>
+    <Button onClick={onRetry}>Try Again</Button>
+  </div>
+);
+
 export default function SubscriptionsPage() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,55 +81,72 @@ export default function SubscriptionsPage() {
   const [success, setSuccess] = useState(false);
   const supabase = createClient();
 
-  useEffect(() => {
-    async function fetchEmails() {
-      try {
-        const response = await fetch('/api/email');
-        const data = (await response.json()) as GmailResponse;
+  const fetchEmails = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch emails');
+      const response = await fetch('/api/email');
+      
+      if (!response.ok) {
+        // Try to parse error message if available
+        let errorMessage = 'Failed to fetch emails';
+        try {
+          const errorData = await response.text();
+          errorMessage = errorData || 'Failed to fetch emails';
+        } catch (e) {
+          console.error('Error parsing error response:', e);
         }
-
-        // Create a Map to store unique senders
-        const sendersMap = new Map<string, Sender>();
-
-        data.messages.messages.forEach((message: GmailMessage) => {
-          const fromHeader = message.payload.headers.find(
-            (h: EmailHeader) => h.name === 'From'
-          )?.value;
-        
-          if (fromHeader) {
-            const { email, name } = parseFromHeader(fromHeader);
-            if (!sendersMap.has(email)) {
-              sendersMap.set(email, {
-                email,
-                name,
-                checked: false,
-                labels: message.labelNames || []
-              });
-            } else {
-              // Merge labels for existing sender
-              const existingSender = sendersMap.get(email)!;
-              const newLabels = message.labelNames || [];
-              existingSender.labels = Array.from(new Set([...existingSender.labels, ...newLabels]));
-            }
-          }
-        });
-
-        // Convert map to array and sort alphabetically by email
-        const sendersArray = Array.from(sendersMap.values())
-          .sort((a, b) => a.email.localeCompare(b.email));
-
-        setSenders(sendersArray);
-      } catch (error) {
-        console.error('Error fetching emails:', error);
-        setError(error instanceof Error ? error.message : 'An error occurred');
-      } finally {
-        setLoading(false);
+        throw new Error(errorMessage);
       }
-    }
 
+      // Only try to parse JSON if response is OK
+      const data = await response.json() as GmailResponse;
+
+      // Create a Map to store unique senders
+      const sendersMap = new Map<string, Sender>();
+
+      if (!data.messages?.messages) {
+        throw new Error('Invalid response format from email API');
+      }
+
+      data.messages.messages.forEach((message: GmailMessage) => {
+        const fromHeader = message.payload.headers.find(
+          (h: EmailHeader) => h.name.toLowerCase() === 'from'
+        )?.value;
+      
+        if (fromHeader) {
+          const { email, name } = parseFromHeader(fromHeader);
+          if (!sendersMap.has(email)) {
+            sendersMap.set(email, {
+              email,
+              name,
+              checked: false,
+              labels: message.labelNames || []
+            });
+          } else {
+            // Merge labels for existing sender
+            const existingSender = sendersMap.get(email)!;
+            const newLabels = message.labelNames || [];
+            existingSender.labels = Array.from(new Set([...existingSender.labels, ...newLabels]));
+          }
+        }
+      });
+
+      // Convert map to array and sort alphabetically by email
+      const sendersArray = Array.from(sendersMap.values())
+        .sort((a, b) => a.email.localeCompare(b.email));
+
+      setSenders(sendersArray);
+    } catch (error) {
+      console.error('Error fetching emails:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred while fetching emails');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchEmails();
   }, []);
 
@@ -145,6 +171,10 @@ export default function SubscriptionsPage() {
 
       const selectedSenders = senders.filter(sender => sender.checked);
       
+      if (selectedSenders.length === 0) {
+        throw new Error('Please select at least one sender');
+      }
+
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('No user found');
@@ -172,6 +202,10 @@ export default function SubscriptionsPage() {
   };
 
   if (loading) return <LoadingState />;
+  
+  if (error && !senders.length) {
+    return <ErrorState message={error} onRetry={fetchEmails} />;
+  }
 
   return (
     <div className="container mx-auto">
@@ -252,15 +286,15 @@ export default function SubscriptionsPage() {
                   )}
                   {sender.labels.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1 items-center pt-2">
-                        <span className='text-xs text-gray-500'>Gmail Labels:</span>
-                        {sender.labels.map((label) => (
+                      <span className='text-xs text-gray-500'>Gmail Labels:</span>
+                      {sender.labels.map((label) => (
                         <span 
-                            key={label} 
-                            className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
+                          key={label} 
+                          className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
                         > 
-                            {label.replace('CATEGORY_', '').toLowerCase()}
+                          {label.replace('CATEGORY_', '').toLowerCase()}
                         </span>
-                        ))}
+                      ))}
                     </div>
                   )}
                 </div>

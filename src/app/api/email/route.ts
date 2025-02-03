@@ -24,14 +24,9 @@ const EXCLUDED_LABELS = new Set([
   'CATEGORY_SOCIAL'
 ]);
 
-// Create an extended message interface
 interface ExtendedGmailMessage extends gmail_v1.Schema$Message {
   labelNames?: string[];
 }
-
-// Update the processedMessages array type
-//const processedMessages: ExtendedGmailMessage[] = [];
-
 
 function getDateRange() {
   const today = new Date();
@@ -53,23 +48,30 @@ export async function GET() {
   const supabase = await createClient();
   
   try {
+    // Check authentication
     const { data: { session } } = await supabase.auth.getSession();
-    
     if (!session?.user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return new NextResponse(
+        JSON.stringify({ error: "Not authenticated" }), 
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
+    // Get OAuth tokens
     const cookieStore = await cookies();
     const accessToken = cookieStore.get('provider_token')?.value;
     const refreshToken = cookieStore.get('provider_refresh_token')?.value;
 
     if (!accessToken || !refreshToken) {
-      return NextResponse.json({ 
-        error: "Missing OAuth tokens",
-        details: { hasAccessToken: !!accessToken, hasRefreshToken: !!refreshToken }
-      }, { status: 401 });
+      return new NextResponse(
+        JSON.stringify({ 
+          error: "Gmail authentication required. Please reconnect your Gmail account." 
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
+    // Initialize Gmail client
     const oauth2Client = new OAuth2Client({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -83,14 +85,15 @@ export async function GET() {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     const { startDate, endDate } = getDateRange();
-    
-    console.log('Fetching emails from', startDate, 'to', endDate);
 
+    // Fetch labels first
     const labelsResponse = await gmail.users.labels.list({
       userId: 'me'
+    }).catch(error => {
+      throw new Error(`Failed to fetch labels: ${error.message}`);
     });
     
-    // Create label map with strict type checking
+    // Create label map
     const labelMap = new Map<string, string>(
       labelsResponse.data.labels
         ?.filter((label): label is gmail_v1.Schema$Label => {
@@ -105,38 +108,47 @@ export async function GET() {
         .map(label => [label.id!, label.name!]) || []
     );
 
-    // Get messages
+    // Fetch messages with pagination
     let allMessages: gmail_v1.Schema$Message[] = [];
-let pageToken: string | undefined = undefined;
+    let pageToken: string | undefined = undefined;
 
-do {
-  const response: GaxiosResponse<gmail_v1.Schema$ListMessagesResponse> = await gmail.users.messages.list({
-    userId: 'me',
-    maxResults: 500,
-    pageToken: pageToken,
-    q: `after:${startDate} before:${endDate} (in:inbox OR in:sent OR in:spam OR in:all)`
-  });
+    do {
+      const response: GaxiosResponse<gmail_v1.Schema$ListMessagesResponse> = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: 500,
+        pageToken: pageToken,
+        q: `after:${startDate} before:${endDate} (in:inbox OR in:sent OR in:spam OR in:all)`
+      }).catch(error => {
+        throw new Error(`Failed to fetch message list: ${error.message}`);
+      });
 
-  if (response.data.messages) {
-    allMessages = allMessages.concat(response.data.messages);
-  }
+      if (response.data.messages) {
+        allMessages = allMessages.concat(response.data.messages);
+      }
 
-  pageToken = response.data.nextPageToken || undefined;
-  
-  if (allMessages.length >= 2000) {
-    console.log('Reached 2000 message limit');
-    break;
-  }
+      pageToken = response.data.nextPageToken || undefined;
+      
+      if (allMessages.length >= 2000) {
+        console.log('Reached 2000 message limit');
+        break;
+      }
 
-  if (pageToken) {
-    await delay(100);
-  }
-} while (pageToken);
+      if (pageToken) {
+        await delay(100);
+      }
+    } while (pageToken);
 
-    console.log(`Processing ${allMessages.length} messages`);
+    if (allMessages.length === 0) {
+      return new NextResponse(
+        JSON.stringify({
+          messages: { messages: [], resultSizeEstimate: 0 }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Process messages in batches
-    const processedMessages = [];
+    const processedMessages: ExtendedGmailMessage[] = [];
     const batchSize = 20;
     
     for (let i = 0; i < allMessages.length; i += batchSize) {
@@ -155,7 +167,9 @@ do {
             metadataHeaders: ['From', 'Date', 'Subject']
           });
         })
-      );
+      ).catch(error => {
+        throw new Error(`Failed to fetch message details: ${error.message}`);
+      });
 
       // Add label names to each message
       batchResults.forEach((result: GaxiosResponse<ExtendedGmailMessage>) => {
@@ -171,22 +185,40 @@ do {
       await delay(50);
     }
 
-    return NextResponse.json({
-      success: true,
-      messages: {
-        messages: processedMessages,
-        resultSizeEstimate: allMessages.length
+    // Return formatted response
+    return new NextResponse(
+      JSON.stringify({
+        messages: {
+          messages: processedMessages,
+          resultSizeEstimate: allMessages.length
+        }
+      }),
+      { 
+        status: 200, 
+        headers: { 'Content-Type': 'application/json' }
       }
-    });
+    );
 
   } catch (error) {
     console.error('Gmail API error:', error);
-    return NextResponse.json({ 
-      error: "Failed to fetch emails",
-      details: error instanceof Error ? {
-        message: error.message,
-        name: error.name
-      } : String(error)
-    }, { status: 500 });
+    
+    // Format error response
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'An unexpected error occurred while fetching emails';
+      
+    return new NextResponse(
+      JSON.stringify({ 
+        error: errorMessage,
+        details: error instanceof Error ? {
+          message: error.message,
+          name: error.name
+        } : String(error)
+      }),
+      { 
+        status: 500, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
+    );
   }
 }
