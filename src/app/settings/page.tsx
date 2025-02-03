@@ -92,7 +92,12 @@ export default async function SettingsPage() {
 
       {/* Subscriptions Section */}
       <div className='container mx-auto my-12 bg-white p-8 rounded-lg shadow-md'>
-        <h2 className='text-xl font-bold mb-4'>Email Subscriptions</h2>
+        <div className='flex items-center justify-between mx-auto my-4'>
+          <h2 className='text-xl font-bold'>Your Subscriptions</h2>
+          <Link href="/subscriptions" className="text-blue-500 ml-2">
+            Find New Subscriptions
+          </Link>
+        </div>
         <div className="grid grid-cols-1 gap-4">
           {subscriptions && subscriptions.length > 0 ? (
             subscriptions.map((sub) => (

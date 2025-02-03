@@ -51,6 +51,7 @@
     "lucide-react": "^0.473.0",
     "mongoose": "^8.9.5",
     "next": "15.1.4",
+    "node-html-parser": "^7.0.1",
     "openai": "^4.79.3",
     "pnpm": "^9.15.4",
     "react": "^19.0.0",

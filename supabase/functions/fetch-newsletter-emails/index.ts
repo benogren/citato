@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 import OpenAI from "https://esm.sh/openai@4.20.1"
+import { cleanEmailContent } from "./cleanemails.ts"
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,7 +49,10 @@ async function createGmailClient(userId: string, accessToken: string, refreshTok
         console.error('Error updating token:', error)
       }
 
+      console.log("New Access Token:", currentAccessToken);
+
       return currentAccessToken
+
     } catch (error) {
       console.error('Error refreshing token:', error)
       throw error
@@ -203,9 +208,13 @@ serve(async (req: Request) => {
         )
 
         // Get last hour's date
+        const today = new Date()
         const lastHour = new Date()
-        lastHour.setHours(lastHour.getHours() - 24)
-        const formattedDate = lastHour.toISOString()
+        lastHour.setHours(lastHour.getHours() - 1)
+        //const formattedDate = lastHour.toISOString()
+        const formattedDate = Math.floor(lastHour.getTime() / 1000)
+
+        console.log("Today:", today, "Last Hour:", lastHour, "Formatted Date:", formattedDate)
 
         // Create OR condition for all subscribed emails
         const fromQueries = (subscriptions as { user_id: string, from_email: string }[])
@@ -215,6 +224,8 @@ serve(async (req: Request) => {
 
         console.log(`Fetching emails for user ${userId} with query:`, query)
         const response = await gmail.listMessages(query)
+
+        console.log("Gmail API response:", JSON.stringify(response, null, 2));
 
         if (!response.messages) {
           console.log(`No new messages found for user ${userId}`)
@@ -230,12 +241,29 @@ serve(async (req: Request) => {
           const headers = fullMessage.payload?.headers || []
           const from = headers.find((h: any) => h.name === 'From')?.value || ''
           const subject = headers.find((h: any) => h.name === 'Subject')?.value || ''
-          const date = headers.find((h: any) => h.name === 'Date')?.value
+          //const date = headers.find((h: any) => h.name === 'Date')?.value
+          const dateHeader = headers.find((h: any) => h.name === 'Date')?.value || "";
+
+          let receivedAt: string | null = null;
+          if (dateHeader) {
+            receivedAt = new Date(dateHeader).toISOString(); // Convert to ISO 8601
+          }
 
           // Parse from field
-          const fromMatch = from.match(/^(?:"?([^"]*)"?\s*)?(?:<([^>]+)>|([^\s]+@[^\s]+))$/)
-          const fromName = fromMatch?.[1]?.trim() || ''
-          const fromEmail = (fromMatch?.[2] || fromMatch?.[3])?.trim() || ''
+          const fromMatch = from.match(/^(.*?)\s*<([^>]+)>$/);
+          let fromName = "";
+          let fromEmail = "";
+
+          if (fromMatch) {
+            fromName = fromMatch[1]?.trim() || "";
+            fromEmail = fromMatch[2]?.trim() || "";
+          } else {
+            // If no match, assume it's just an email without a name
+            fromEmail = from.trim();
+          }
+          //const fromMatch = from.match(/^(?:"?([^"]*)"?\s*)?(?:<([^>]+)>|([^\s]+@[^\s]+))$/)
+          //const fromName = fromMatch?.[1]?.trim() || ''
+          //const fromEmail = (fromMatch?.[2] || fromMatch?.[3])?.trim() || ''
 
           function findPartByMimeType(part: any, mimeType: string): any {
             if (part.mimeType === mimeType) {
@@ -265,8 +293,12 @@ serve(async (req: Request) => {
           }
 
           // Extract content for AI summary
-          const paragraphs = plainText.split('\n\n').filter(p => p.trim().length > 0)
-          const toSummarize = JSON.stringify(paragraphs)
+          const scrapedData = await cleanEmailContent([
+            { id: message.id, htmlContent: htmlBody }
+          ]);
+          const toSummarize = JSON.stringify(scrapedData[0].extractedContent.paragraphs);
+          //const paragraphs = htmlBody.split('\n\n').filter(p => p.trim().length > 0)
+          //const toSummarize = JSON.stringify(scrapedData)
 
           const openai = new OpenAI({
             apiKey: Deno.env.get('OPENAI_API_KEY'),
@@ -297,7 +329,7 @@ serve(async (req: Request) => {
               from_email: fromEmail,
               from_name: fromName,
               subject,
-              received_at: date,
+              received_at: receivedAt,
               html_body: htmlBody,
               plain_text: plainText,
               ai_summary: contentSummary

@@ -1,5 +1,4 @@
 'use client';
-
 import ReactTimeAgo from 'react-timeago';
 
 interface TimeAgoProps {

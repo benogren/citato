@@ -7,5 +7,10 @@
       "allowJs": true,
       "strict": true,
       "lib": ["deno.window", "deno.ns", "dom"]
+    },
+    "imports": {
+    "dompurify": "npm:dompurify",
+    "jsdom": "npm:jsdom",
+    "node-html-parser": "npm:node-html-parser"
     }
   }
