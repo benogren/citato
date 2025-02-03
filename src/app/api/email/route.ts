@@ -6,7 +6,6 @@ import { cookies } from 'next/headers';
 import { gmail_v1 } from 'googleapis';
 import { GaxiosResponse } from 'gaxios';
 
-// Reduced delay to speed up processing
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 interface ExtendedGmailMessage extends gmail_v1.Schema$Message {
@@ -19,12 +18,13 @@ function getDateRange() {
                  String(today.getMonth() + 1).padStart(2, '0') + '/' + 
                  String(today.getDate()).padStart(2, '0');
 
-  // Reduce the date range to last 15 days instead of a month
+  // Restore to full month
   const startDate = new Date();
-  startDate.setDate(today.getDate() - 15);
+  startDate.setDate(1);
+  startDate.setMonth(startDate.getMonth() - 1);
   const startDateString = startDate.getFullYear() + '/' + 
                          String(startDate.getMonth() + 1).padStart(2, '0') + '/' + 
-                         String(startDate.getDate()).padStart(2, '0');
+                         '01';
 
   return { startDate: startDateString, endDate };
 }
@@ -68,14 +68,36 @@ export async function GET() {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     const { startDate, endDate } = getDateRange();
 
-    // Fetch initial set of messages with a smaller limit
-    const initialResponse: GaxiosResponse<gmail_v1.Schema$ListMessagesResponse> = await gmail.users.messages.list({
-      userId: 'me',
-      maxResults: 100, // Reduced from 500
-      q: `after:${startDate} before:${endDate} (in:inbox OR in:sent OR in:spam)`
-    });
+    // Fetch all messages with pagination
+    let allMessages: gmail_v1.Schema$Message[] = [];
+    let pageToken: string | undefined = undefined;
 
-    if (!initialResponse.data.messages) {
+    do {
+      const response: GaxiosResponse<gmail_v1.Schema$ListMessagesResponse> = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: 500,
+        pageToken: pageToken,
+        q: `after:${startDate} before:${endDate} (in:inbox OR in:anywhere -in:sent -in:spam -in:trash)`
+      });
+
+      if (response.data.messages) {
+        allMessages = allMessages.concat(response.data.messages);
+      }
+
+      pageToken = response.data.nextPageToken || undefined;
+      
+      // Limit to 1000 messages total to prevent timeouts
+      if (allMessages.length >= 1000) {
+        console.log('Reached 1000 message limit');
+        break;
+      }
+
+      if (pageToken) {
+        await delay(20); // Short delay between pagination requests
+      }
+    } while (pageToken);
+
+    if (allMessages.length === 0) {
       return new NextResponse(
         JSON.stringify({
           messages: { messages: [], resultSizeEstimate: 0 }
@@ -84,13 +106,12 @@ export async function GET() {
       );
     }
 
-    // Process messages in smaller batches with shorter delays
+    // Process messages in optimized batches
     const processedMessages: ExtendedGmailMessage[] = [];
-    const batchSize = 10; // Reduced from 20
-    const messagesToProcess = initialResponse.data.messages.slice(0, 100); // Limit to first 100 messages
+    const batchSize = 15; // Balanced batch size
 
-    for (let i = 0; i < messagesToProcess.length; i += batchSize) {
-      const batch = messagesToProcess.slice(i, i + batchSize);
+    for (let i = 0; i < allMessages.length; i += batchSize) {
+      const batch = allMessages.slice(i, i + batchSize);
       
       const batchResults = await Promise.all(
         batch.map(message => 
@@ -104,14 +125,18 @@ export async function GET() {
       );
 
       processedMessages.push(...batchResults.map(r => r.data));
-      await delay(20); // Reduced delay
+      
+      // Add small delay between batches to prevent rate limiting
+      if (i + batchSize < allMessages.length) {
+        await delay(20);
+      }
     }
 
     return new NextResponse(
       JSON.stringify({
         messages: {
           messages: processedMessages,
-          resultSizeEstimate: messagesToProcess.length
+          resultSizeEstimate: allMessages.length
         }
       }),
       { 
