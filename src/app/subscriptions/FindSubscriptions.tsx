@@ -32,11 +32,6 @@ interface GmailResponse {
   };
 }
 
-interface Subscription {
-  from_email: string;
-  from_name: string;
-}
-
 function parseFromHeader(fromString: string): { email: string; name: string } {
   // Remove any extra angle brackets that might exist
   const cleanString = fromString.replace(/>>/g, '>').replace(/<</, '<');
@@ -78,48 +73,23 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
   </div>
 );
 
-export default function FindSubscriptions() {
+export default function SubscriptionsPage() {
   const [senders, setSenders] = useState<Sender[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [existingSubscriptions, setExistingSubscriptions] = useState<Set<string>>(new Set());
   const supabase = createClient();
-
-  // Fetch existing subscriptions
-  const fetchExistingSubscriptions = async () => {
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) throw new Error('No user found');
-
-      const { data: subscriptions, error: subError } = await supabase
-        .from('subscriptions')
-        .select('from_email')
-        .eq('user_id', user.id);
-
-      if (subError) throw subError;
-
-      return new Set(subscriptions.map(sub => sub.from_email));
-    } catch (error) {
-      console.error('Error fetching subscriptions:', error);
-      return new Set();
-    }
-  };
 
   const fetchEmails = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch existing subscriptions first
-      const existingSubs = await fetchExistingSubscriptions();
-      setExistingSubscriptions(existingSubs);
-
       const response = await fetch('/api/email');
       
       if (!response.ok) {
+        // Try to parse error message if available
         let errorMessage = 'Failed to fetch emails';
         try {
           const errorData = await response.text();
@@ -130,7 +100,10 @@ export default function FindSubscriptions() {
         throw new Error(errorMessage);
       }
 
+      // Only try to parse JSON if response is OK
       const data = await response.json() as GmailResponse;
+
+      // Create a Map to store unique senders
       const sendersMap = new Map<string, Sender>();
 
       if (!data.messages?.messages) {
@@ -144,16 +117,15 @@ export default function FindSubscriptions() {
       
         if (fromHeader) {
           const { email, name } = parseFromHeader(fromHeader);
-          // Only add if not already subscribed
-          if (!existingSubs.has(email) && !sendersMap.has(email)) {
+          if (!sendersMap.has(email)) {
             sendersMap.set(email, {
               email,
               name,
               checked: false,
               labels: message.labelNames || []
             });
-          } else if (!existingSubs.has(email)) {
-            // Update labels for existing sender if not subscribed
+          } else {
+            // Merge labels for existing sender
             const existingSender = sendersMap.get(email)!;
             const newLabels = message.labelNames || [];
             existingSender.labels = Array.from(new Set([...existingSender.labels, ...newLabels]));
@@ -161,6 +133,7 @@ export default function FindSubscriptions() {
         }
       });
 
+      // Convert map to array and sort alphabetically by email
       const sendersArray = Array.from(sendersMap.values())
         .sort((a, b) => a.email.localeCompare(b.email));
 
@@ -218,15 +191,8 @@ export default function FindSubscriptions() {
 
       if (insertError) throw insertError;
 
-      // Update existing subscriptions and reset senders
-      const updatedSubs = new Set([...existingSubscriptions, ...selectedSenders.map(s => s.email)]);
-      setExistingSubscriptions(updatedSubs);
-      setSenders(prev => prev
-        .filter(sender => !updatedSubs.has(sender.email))
-        .map(sender => ({ ...sender, checked: false }))
-      );
-
       setSuccess(true);
+      setSenders(prev => prev.map(sender => ({ ...sender, checked: false })));
     } catch (error) {
       console.error('Error saving subscriptions:', error);
       setError(error instanceof Error ? error.message : 'Failed to save subscriptions');
@@ -248,7 +214,7 @@ export default function FindSubscriptions() {
           <div>
             <h1 className="text-2xl font-bold">Find Subscriptions</h1>
             <p className="text-gray-600">
-              Found {senders.length} new senders
+              Found {senders.length} unique senders
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -280,15 +246,6 @@ export default function FindSubscriptions() {
         {success && (
           <div className="mb-4 p-4 bg-green-50 text-green-600 rounded-md">
             Successfully saved subscriptions!
-          </div>
-        )}
-
-        {senders.length === 0 && !loading && !error && (
-          <div className="text-center py-12">
-            <h3 className="text-lg font-medium text-gray-900">No New Senders Found</h3>
-            <p className="mt-2 text-gray-500">
-              All senders in your recent emails are already in your subscriptions.
-            </p>
           </div>
         )}
 
