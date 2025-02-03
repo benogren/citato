@@ -26,6 +26,38 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}/sign-in?error=Could not establish session`);
       }
 
+      // Save tokens to auth_tokens table
+      if (session.provider_token && session.provider_refresh_token) {
+        console.log('Saving tokens to database...');
+        const { error: tokenError } = await supabase
+          .from('auth_tokens')
+          .upsert({
+            user_id: session.user.id,
+            access_token: session.provider_token,
+            refresh_token: session.provider_refresh_token,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (tokenError) {
+          console.error('Error saving tokens to database:', tokenError);
+          // Log the attempted data for debugging
+          console.log('Attempted to save:', {
+            user_id: session.user.id,
+            hasAccessToken: !!session.provider_token,
+            hasRefreshToken: !!session.provider_refresh_token
+          });
+        } else {
+          console.log('Successfully saved tokens to database');
+        }
+      } else {
+        console.error('Missing required tokens:', {
+          hasAccessToken: !!session.provider_token,
+          hasRefreshToken: !!session.provider_refresh_token
+        });
+      }
+
       // Create response with redirect
       const response = NextResponse.redirect(
         redirectTo ? `${origin}${redirectTo}` : `${origin}/home`
