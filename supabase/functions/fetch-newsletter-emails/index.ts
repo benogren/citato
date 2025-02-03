@@ -7,35 +7,100 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Gmail API wrapper
-async function createGmailClient(accessToken: string) {
+// Gmail API wrapper with token refresh
+async function createGmailClient(userId: string, accessToken: string, refreshToken: string, supabase: any) {
   const baseUrl = 'https://gmail.googleapis.com/gmail/v1/users/me'
-  const headers = {
-    'Authorization': `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
+  let currentAccessToken = accessToken
+
+  async function refreshAccessToken() {
+    try {
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: Deno.env.get('GOOGLE_CLIENT_ID') || '',
+          client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') || '',
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to refresh token')
+      }
+
+      const data = await response.json()
+      currentAccessToken = data.access_token
+
+      // Update the token in the database
+      const { error } = await supabase
+        .from('auth_tokens')
+        .update({
+          access_token: currentAccessToken,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+
+      if (error) {
+        console.error('Error updating token:', error)
+      }
+
+      return currentAccessToken
+    } catch (error) {
+      console.error('Error refreshing token:', error)
+      throw error
+    }
+  }
+
+  async function makeRequest(url: string, options: RequestInit = {}) {
+    const headers = {
+      'Authorization': `Bearer ${currentAccessToken}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    }
+
+    const response = await fetch(url, { ...options, headers })
+
+    if (response.status === 401) {
+      // Token expired, refresh and retry
+      console.log('Token expired, refreshing...')
+      currentAccessToken = await refreshAccessToken()
+      
+      // Retry the request with new token
+      const retryResponse = await fetch(url, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${currentAccessToken}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      })
+
+      if (!retryResponse.ok) {
+        throw new Error(`Gmail API error: ${retryResponse.statusText}`)
+      }
+
+      return retryResponse.json()
+    }
+
+    if (!response.ok) {
+      throw new Error(`Gmail API error: ${response.statusText}`)
+    }
+
+    return response.json()
   }
 
   return {
     async listMessages(query: string) {
-      const response = await fetch(
-        `${baseUrl}/messages?q=${encodeURIComponent(query)}&maxResults=50`,
-        { headers }
+      return makeRequest(
+        `${baseUrl}/messages?q=${encodeURIComponent(query)}&maxResults=50`
       )
-      if (!response.ok) {
-        throw new Error(`Gmail API error: ${response.statusText}`)
-      }
-      return response.json()
     },
 
     async getMessage(messageId: string) {
-      const response = await fetch(
-        `${baseUrl}/messages/${messageId}?format=full`,
-        { headers }
-      )
-      if (!response.ok) {
-        throw new Error(`Gmail API error: ${response.statusText}`)
-      }
-      return response.json()
+      return makeRequest(`${baseUrl}/messages/${messageId}?format=full`)
     }
   }
 }
@@ -58,6 +123,8 @@ serve(async (req: Request) => {
     const requiredEnvVars = [
       'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
       'OPENAI_API_KEY'
     ]
 
@@ -122,13 +189,18 @@ serve(async (req: Request) => {
           continue
         }
 
-        if (!authData?.access_token) {
+        if (!authData?.access_token || !authData?.refresh_token) {
           console.error(`Missing auth tokens for user ${userId}`)
           continue
         }
 
         // Create Gmail client for this user
-        const gmail = await createGmailClient(authData.access_token)
+        const gmail = await createGmailClient(
+          userId,
+          authData.access_token,
+          authData.refresh_token,
+          supabase
+        )
 
         // Get last hour's date
         const lastHour = new Date()
