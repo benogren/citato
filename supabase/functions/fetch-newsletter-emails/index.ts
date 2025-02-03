@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
+import { google } from "https://esm.sh/googleapis@126.0.1"
+import { OAuth2Client } from "https://esm.sh/google-auth-library@9.0.0"
 import OpenAI from "https://esm.sh/openai@4.20.1"
 
 const corsHeaders = {
@@ -7,43 +9,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Initialize the Gmail API using fetch directly
-async function createGmailClient(accessToken: string) {
-  const headers = {
-    'Authorization': `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-  }
-
-  return {
-    async listMessages(query: string) {
-      const response = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
-        { headers }
-      )
-      if (!response.ok) {
-        throw new Error(`Gmail API error: ${response.statusText}`)
-      }
-      return response.json()
-    },
-
-    async getMessage(messageId: string) {
-      const response = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`,
-        { headers }
-      )
-      if (!response.ok) {
-        throw new Error(`Gmail API error: ${response.statusText}`)
-      }
-      return response.json()
-    }
-  }
-}
-
 serve(async (req: Request) => {
   console.log("Function started")
   
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  // Check for cron invocation
+  const authHeader = req.headers.get('authorization')
+  const cronKey = Deno.env.get('CRON_KEY')
+  if (!authHeader || !authHeader.includes(cronKey || '')) {
+    console.error('Unauthorized request')
+    return new Response('Unauthorized', {
+      status: 401,
+      headers: corsHeaders
+    })
   }
 
   try {
@@ -51,6 +33,9 @@ serve(async (req: Request) => {
     const requiredEnvVars = [
       'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'NEXT_PUBLIC_SITE_URL',
       'OPENAI_API_KEY'
     ]
 
@@ -69,7 +54,7 @@ serve(async (req: Request) => {
     console.log("Fetching subscriptions...")
     const { data: users, error: usersError } = await supabase
       .from('subscriptions')
-      .select<{ user_id: string, from_email: string }>('user_id, from_email')
+      .select('user_id, from_email')
 
     if (usersError) {
       console.error('Error fetching subscriptions:', usersError)
@@ -89,6 +74,13 @@ serve(async (req: Request) => {
 
     console.log(`Found ${users.length} subscriptions`)
 
+    // Create OAuth2 client once
+    const oauth2Client = new OAuth2Client(
+      Deno.env.get('GOOGLE_CLIENT_ID'),
+      Deno.env.get('GOOGLE_CLIENT_SECRET'),
+      `${Deno.env.get('NEXT_PUBLIC_SITE_URL')}/auth/callback`
+    )
+
     // Group subscriptions by user
     const userSubscriptions = users.reduce((acc: Record<string, any[]>, curr) => {
       if (!acc[curr.user_id]) {
@@ -97,6 +89,8 @@ serve(async (req: Request) => {
       acc[curr.user_id].push(curr)
       return acc
     }, {})
+
+    console.log(`Processing ${Object.keys(userSubscriptions).length} users`)
 
     // Process each user's emails
     for (const [userId, subscriptions] of Object.entries(userSubscriptions)) {
@@ -108,13 +102,24 @@ serve(async (req: Request) => {
           .eq('user_id', userId)
           .single()
 
-        if (authError || !authData?.access_token) {
+        if (authError) {
           console.error(`Error getting auth tokens for user ${userId}:`, authError)
           continue
         }
 
-        // Create Gmail client for this user
-        const gmail = await createGmailClient(authData.access_token)
+        if (!authData?.access_token || !authData?.refresh_token) {
+          console.error(`Missing auth tokens for user ${userId}`)
+          continue
+        }
+
+        // Set credentials for this user
+        oauth2Client.setCredentials({
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token
+        })
+
+        console.log(`Processing ${subscriptions.length} subscriptions for user ${userId}`)
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
 
         // Get last hour's date
         const lastHour = new Date()
@@ -128,30 +133,37 @@ serve(async (req: Request) => {
         const query = `${fromQueries} after:${formattedDate}`
 
         console.log(`Fetching emails for user ${userId} with query:`, query)
-        const response = await gmail.listMessages(query)
+        const response = await gmail.users.messages.list({
+          userId: 'me',
+          q: query,
+          maxResults: 50
+        })
 
-        if (!response.messages) {
+        if (!response.data.messages) {
           console.log(`No new messages found for user ${userId}`)
           continue
         }
 
-        console.log(`Found ${response.messages.length} messages for user ${userId}`)
+        console.log(`Found ${response.data.messages.length} messages for user ${userId}`)
 
         // Process each message
-        for (const message of response.messages) {
-          const fullMessage = await gmail.getMessage(message.id)
+        for (const message of response.data.messages) {
+          const fullMessage = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id,
+            format: 'full'
+          })
 
-          const headers = fullMessage.payload?.headers || []
-          const from = headers.find((h: any) => h.name === 'From')?.value || ''
-          const subject = headers.find((h: any) => h.name === 'Subject')?.value || ''
-          const date = headers.find((h: any) => h.name === 'Date')?.value
+          const headers = fullMessage.data.payload?.headers
+          const from = headers?.find(h => h.name === 'From')?.value || ''
+          const subject = headers?.find(h => h.name === 'Subject')?.value || ''
+          const date = headers?.find(h => h.name === 'Date')?.value
 
           // Parse from field
           const fromMatch = from.match(/^(?:"?([^"]*)"?\s*)?(?:<([^>]+)>|([^\s]+@[^\s]+))$/)
           const fromName = fromMatch?.[1]?.trim() || ''
           const fromEmail = (fromMatch?.[2] || fromMatch?.[3])?.trim() || ''
 
-          // Get both HTML and plain text parts
           function findPartByMimeType(part: any, mimeType: string): any {
             if (part.mimeType === mimeType) {
               return part
@@ -165,8 +177,8 @@ serve(async (req: Request) => {
             return null
           }
 
-          const htmlPart = findPartByMimeType(fullMessage.payload, 'text/html')
-          const plainPart = findPartByMimeType(fullMessage.payload, 'text/plain')
+          const htmlPart = findPartByMimeType(fullMessage.data.payload, 'text/html')
+          const plainPart = findPartByMimeType(fullMessage.data.payload, 'text/plain')
 
           let htmlBody = ''
           let plainText = ''
@@ -222,6 +234,8 @@ serve(async (req: Request) => {
 
           if (insertError) {
             console.error('Error inserting email:', insertError)
+          } else {
+            console.log(`Successfully processed email ${message.id} for user ${userId}`)
           }
         }
       } catch (error) {
