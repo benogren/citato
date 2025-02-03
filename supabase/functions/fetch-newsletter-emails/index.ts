@@ -1,12 +1,43 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
-import { google } from "https://esm.sh/googleapis@126.0.1"
-import { OAuth2Client } from "https://esm.sh/google-auth-library@9.0.0"
 import OpenAI from "https://esm.sh/openai@4.20.1"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Gmail API wrapper
+async function createGmailClient(accessToken: string) {
+  const baseUrl = 'https://gmail.googleapis.com/gmail/v1/users/me'
+  const headers = {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  }
+
+  return {
+    async listMessages(query: string) {
+      const response = await fetch(
+        `${baseUrl}/messages?q=${encodeURIComponent(query)}&maxResults=50`,
+        { headers }
+      )
+      if (!response.ok) {
+        throw new Error(`Gmail API error: ${response.statusText}`)
+      }
+      return response.json()
+    },
+
+    async getMessage(messageId: string) {
+      const response = await fetch(
+        `${baseUrl}/messages/${messageId}?format=full`,
+        { headers }
+      )
+      if (!response.ok) {
+        throw new Error(`Gmail API error: ${response.statusText}`)
+      }
+      return response.json()
+    }
+  }
 }
 
 serve(async (req: Request) => {
@@ -23,26 +54,10 @@ serve(async (req: Request) => {
       throw new Error('Missing authorization header')
     }
 
-    // Allow either JWT or CRON_KEY
-    const cronKey = Deno.env.get('CRON_KEY')
-    const isValidCronKey = authHeader === `Bearer ${cronKey}`
-    const isValidJWT = authHeader.startsWith('Bearer')
-
-    if (!isValidCronKey && !isValidJWT) {
-      console.error('Invalid authorization')
-      return new Response('Unauthorized', {
-        status: 401,
-        headers: corsHeaders
-      })
-    }
-
     // Verify environment variables
     const requiredEnvVars = [
       'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
-      'GOOGLE_CLIENT_ID',
-      'GOOGLE_CLIENT_SECRET',
-      'NEXT_PUBLIC_SITE_URL',
       'OPENAI_API_KEY'
     ]
 
@@ -81,13 +96,6 @@ serve(async (req: Request) => {
 
     console.log(`Found ${users.length} subscriptions`)
 
-    // Create OAuth2 client once
-    const oauth2Client = new OAuth2Client(
-      Deno.env.get('GOOGLE_CLIENT_ID'),
-      Deno.env.get('GOOGLE_CLIENT_SECRET'),
-      `${Deno.env.get('NEXT_PUBLIC_SITE_URL')}/auth/callback`
-    )
-
     // Group subscriptions by user
     const userSubscriptions = users.reduce((acc: Record<string, any[]>, curr) => {
       if (!acc[curr.user_id]) {
@@ -114,19 +122,13 @@ serve(async (req: Request) => {
           continue
         }
 
-        if (!authData?.access_token || !authData?.refresh_token) {
+        if (!authData?.access_token) {
           console.error(`Missing auth tokens for user ${userId}`)
           continue
         }
 
-        // Set credentials for this user
-        oauth2Client.setCredentials({
-          access_token: authData.access_token,
-          refresh_token: authData.refresh_token
-        })
-
-        console.log(`Processing ${subscriptions.length} subscriptions for user ${userId}`)
-        const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
+        // Create Gmail client for this user
+        const gmail = await createGmailClient(authData.access_token)
 
         // Get last hour's date
         const lastHour = new Date()
@@ -140,31 +142,23 @@ serve(async (req: Request) => {
         const query = `${fromQueries} after:${formattedDate}`
 
         console.log(`Fetching emails for user ${userId} with query:`, query)
-        const response = await gmail.users.messages.list({
-          userId: 'me',
-          q: query,
-          maxResults: 50
-        })
+        const response = await gmail.listMessages(query)
 
-        if (!response.data.messages) {
+        if (!response.messages) {
           console.log(`No new messages found for user ${userId}`)
           continue
         }
 
-        console.log(`Found ${response.data.messages.length} messages for user ${userId}`)
+        console.log(`Found ${response.messages.length} messages for user ${userId}`)
 
         // Process each message
-        for (const message of response.data.messages) {
-          const fullMessage = await gmail.users.messages.get({
-            userId: 'me',
-            id: message.id,
-            format: 'full'
-          })
+        for (const message of response.messages) {
+          const fullMessage = await gmail.getMessage(message.id)
 
-          const headers = fullMessage.data.payload?.headers
-          const from = headers?.find(h => h.name === 'From')?.value || ''
-          const subject = headers?.find(h => h.name === 'Subject')?.value || ''
-          const date = headers?.find(h => h.name === 'Date')?.value
+          const headers = fullMessage.payload?.headers || []
+          const from = headers.find((h: any) => h.name === 'From')?.value || ''
+          const subject = headers.find((h: any) => h.name === 'Subject')?.value || ''
+          const date = headers.find((h: any) => h.name === 'Date')?.value
 
           // Parse from field
           const fromMatch = from.match(/^(?:"?([^"]*)"?\s*)?(?:<([^>]+)>|([^\s]+@[^\s]+))$/)
@@ -184,8 +178,8 @@ serve(async (req: Request) => {
             return null
           }
 
-          const htmlPart = findPartByMimeType(fullMessage.data.payload, 'text/html')
-          const plainPart = findPartByMimeType(fullMessage.data.payload, 'text/plain')
+          const htmlPart = findPartByMimeType(fullMessage.payload, 'text/html')
+          const plainPart = findPartByMimeType(fullMessage.payload, 'text/plain')
 
           let htmlBody = ''
           let plainText = ''
