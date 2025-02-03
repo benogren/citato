@@ -164,7 +164,7 @@ serve(async (req: Request) => {
     console.log(`Found ${users.length} subscriptions`)
 
     // Group subscriptions by user
-    const userSubscriptions = users.reduce((acc: Record<string, any[]>, curr) => {
+    const userSubscriptions = users.reduce((acc: Record<string, { user_id: string, from_email: string }[]>, curr: { user_id: string, from_email: string }) => {
       if (!acc[curr.user_id]) {
         acc[curr.user_id] = []
       }
@@ -208,7 +208,7 @@ serve(async (req: Request) => {
         const formattedDate = lastHour.toISOString()
 
         // Create OR condition for all subscribed emails
-        const fromQueries = subscriptions
+        const fromQueries = (subscriptions as { user_id: string, from_email: string }[])
           .map(sub => `from:${sub.from_email}`)
           .join(' OR ')
         const query = `${fromQueries} after:${formattedDate}`
