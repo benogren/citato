@@ -204,7 +204,7 @@ serve(async (req: Request) => {
 
         // Get last hour's date
         const lastHour = new Date()
-        lastHour.setHours(lastHour.getHours() - 1)
+        lastHour.setHours(lastHour.getHours() - 24)
         const formattedDate = lastHour.toISOString()
 
         // Create OR condition for all subscribed emails
