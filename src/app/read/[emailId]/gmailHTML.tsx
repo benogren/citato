@@ -50,7 +50,7 @@ export function DisplayEmail({ messageid }: DisplayEmailProps) {
   
     const fetchEmail = async () => {
       try {
-        const response = await fetch(`/api/email/messages/route.ts?messageId=${messageid}`, {
+        const response = await fetch(`/api/email/messages/?messageId=${messageid}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
