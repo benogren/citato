@@ -1,5 +1,7 @@
 import TimeAgo from "@/components/time-ago";
 import { createClient } from "@/utils/supabase/server";
+import Link from "next/link";
+
 
 type NewsletterEmail = {
  id: string
@@ -28,15 +30,15 @@ async function fetchTodaysEmails(pageUserId: string): Promise<NewsletterEmail[]>
     endOfDay.setHours(23, 59, 59, 999);
     
     const { data, error } = await supabase
-   .from('newsletter_emails')
-   .select('*')
-   .gte("received_at", startOfDay.toISOString())
-    .lt("received_at", endOfDay.toISOString())
-   .order('received_at', { ascending: false })
-
- if (error) throw error
- return data || []
-}
+        .from('newsletter_emails')
+        .select('*')
+        .gte("received_at", startOfDay.toISOString())
+        .lt("received_at", endOfDay.toISOString())
+        .order('received_at', { ascending: false })
+    
+    if (error) throw error
+        return data || []
+    }
 
 export default async function Roundup({ pageUserId }: { pageUserId: string }) {
    const emails = await fetchTodaysEmails(pageUserId);
@@ -62,6 +64,15 @@ export default async function Roundup({ pageUserId }: { pageUserId: string }) {
                {email.ai_summary && (
                  <p className="mt-2 text-sm text-gray-700">{email.ai_summary}</p>
                )}
+
+               <div className="mt-6">
+                <Link
+                    href={`/read/${email.id}`}
+                    className="text-gray-700 py-2 px-4 border rounded-md"
+                    >
+                        Read More
+                </Link>
+                </div>
              </div>
            ))
          )}

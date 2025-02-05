@@ -309,7 +309,7 @@ serve(async (req: Request) => {
             messages: [
               {
                 role: "system",
-                content: "You will be provided newsletter content, and your task is to summarize the content in a short paragraph",
+                content: "You will be provided newsletter content, and your task is to summarize the content in a short 3 sentence paragraph",
               },
               {
                 role: "user",

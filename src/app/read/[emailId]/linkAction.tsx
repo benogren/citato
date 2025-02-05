@@ -8,7 +8,7 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
 
-export default async function summeryAction(formData: FormData): Promise<void> {
+export default async function linkAction(formData: FormData): Promise<void> {
     const content = formData.get("emailText")?.toString() || "";
     const emailId = formData.get("emailId")?.toString() || "";
 
@@ -26,7 +26,7 @@ export default async function summeryAction(formData: FormData): Promise<void> {
             messages: [
                 { 
                     role: "system", 
-                    content: "You will be provided newsletter content, and your task is to summarize the content in markdown, matching the style of the content's original author as follows:\n    \n    ###Summary\n    ###Key Takeaways\n " 
+                    content: "You will be provided newsletter content, and your task is to find interesting links from the article's content:\n    \n    ###Links to Read Later\n " 
                 },
                 {
                     role: "user",
@@ -43,7 +43,7 @@ export default async function summeryAction(formData: FormData): Promise<void> {
 
         const { error } = await supabase
             .from('newsletter_emails')
-            .update({ ai_fullsummary: contentSummary })
+            .update({ ai_links: contentSummary })
             .eq('id', emailId)
         
             if (error) {
