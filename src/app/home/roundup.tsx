@@ -24,12 +24,13 @@ async function fetchTodaysEmails(pageUserId: string): Promise<NewsletterEmail[]>
     const supabase = await createClient();
     
     const today: Date = new Date();
-    const startOfDay = new Date(today);
-    const endOfDay = new Date(today);
+    const startOfDay = new Date(today + "Z");
+    const endOfDay = new Date(today + "Z");
     startOfDay.setHours(0, 0, 0);
     endOfDay.setHours(23, 59, 59, 999);
 
-    console.log('***Today***', today.toISOString());
+    console.log('startOfDay', startOfDay.toISOString());
+    console.log('endOfDay', endOfDay.toISOString());
     
     const { data, error } = await supabase
         .from('newsletter_emails')
