@@ -29,8 +29,7 @@ async function fetchTodaysEmails(pageUserId: string): Promise<NewsletterEmail[]>
     startOfDay.setHours(0, 0, 0);
     endOfDay.setHours(23, 59, 59, 999);
 
-    console.log('startOfDay', startOfDay.toISOString());
-    console.log('endOfDay', endOfDay.toISOString());
+    console.log('***Today***', today.toISOString());
     
     const { data, error } = await supabase
         .from('newsletter_emails')
