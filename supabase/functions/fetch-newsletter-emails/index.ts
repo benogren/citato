@@ -261,9 +261,6 @@ serve(async (req: Request) => {
             // If no match, assume it's just an email without a name
             fromEmail = from.trim();
           }
-          //const fromMatch = from.match(/^(?:"?([^"]*)"?\s*)?(?:<([^>]+)>|([^\s]+@[^\s]+))$/)
-          //const fromName = fromMatch?.[1]?.trim() || ''
-          //const fromEmail = (fromMatch?.[2] || fromMatch?.[3])?.trim() || ''
 
           function findPartByMimeType(part: any, mimeType: string): any {
             if (part.mimeType === mimeType) {
@@ -309,7 +306,7 @@ serve(async (req: Request) => {
             messages: [
               {
                 role: "system",
-                content: "You will be provided newsletter content, and your task is to summarize the content in a short 3 sentence paragraph",
+                content: "You will be provided newsletter content, and your task is to provide a short summary paragraph (2 to 3 sentences) of the content matching the tone and voice of the content's original author",
               },
               {
                 role: "user",
@@ -319,6 +316,15 @@ serve(async (req: Request) => {
           })
 
           const contentSummary = completion.choices[0].message.content
+
+          // Make Embedding API request
+          const contentEmbedding = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: toSummarize,
+            encoding_format: "float",
+          });
+
+          const savedEmbedding = contentEmbedding.data[0].embedding;
 
           // Insert into database
           const { error: insertError } = await supabase
@@ -331,8 +337,10 @@ serve(async (req: Request) => {
               subject,
               received_at: receivedAt,
               html_body: htmlBody,
+              html_base64: htmlPart?.body?.data,
               plain_text: plainText,
-              ai_summary: contentSummary
+              ai_summary: contentSummary,
+              embeddings: savedEmbedding,
             }, {
               onConflict: 'user_id,message_id'
             })

@@ -1,56 +1,65 @@
 "use server";
 import OpenAI from "openai";
 import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
-import { sanitizeEmailContent } from "@/components/sanitizemailcontent";
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
 
-export default async function summeryAction(formData: FormData): Promise<void> {
-    const content = formData.get("emailText")?.toString() || "";
-    const emailId = formData.get("emailId")?.toString() || "";
+export default async function summaryAction(content: string, emailId: string) {
+    const emailContent = content;
+    const emailid = emailId;
 
-    if (content && content.trim()) {
-        const scrapedData = await sanitizeEmailContent([
-            { id: emailId, htmlContent: content }
-          ]);
-        const toSummarize = JSON.stringify(scrapedData[0].extractedContent.paragraphs);
+    console.log("Email ID:", emailid);
 
-        //###Links to Read Later(pull out any interesting links from the article's content)
-        
-        //As OpenAI to summarize
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                { 
-                    role: "system", 
-                    content: "You will be provided newsletter content, and your task is to summarize the content in markdown, matching the style of the content's original author as follows:\n    \n    ###Summary\n    ###Key Takeaways\n " 
-                },
-                {
-                    role: "user",
-                    content: toSummarize,
-                },
-            ],
-        });
-        const contentSummary = completion.choices[0].message.content;
-
-        // console.log("AI Content Summary:", contentSummary);
-
-        //Store in Supabase
-        const supabase = await createClient();
-
-        const { error } = await supabase
+    const supabase = await createClient();
+    const { data: checklinks, error } = await supabase
             .from('newsletter_emails')
-            .update({ ai_fullsummary: contentSummary })
-            .eq('id', emailId)
-        
+            .select('ai_fullsummary')
+            .eq('id', emailid)
+
             if (error) {
-                console.error("Supabase Update Error:", error);
+                console.error("Supabase Fetch Error:", error);
                 throw error;
             }
+    
+    if (checklinks && checklinks[0].ai_fullsummary) {
+        console.log("Summary already found for this email");
+    } else {
+        console.log("Generating full summary for this email");
 
-        redirect(`/read/${emailId}`);
+        if (emailContent) {
+    
+            //As OpenAI to summarize
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
+                    { 
+                        role: "system", 
+                        content: "You will be provided newsletter content in Base64, and your task is to find keypoints from the content and list them as follows,:\n###Key Takeaways(pull out any interesting points, facts, or takeaways from the article's content)" 
+                    },
+                    {
+                        role: "user",
+                        content: emailContent,
+                    },
+                ],
+            });
+            const fullSummary = completion.choices[0].message.content;
+
+            console.log("AI Content Summary:", fullSummary);
+
+            //Store in Supabase
+            const { error } = await supabase
+                .from('newsletter_emails')
+                .update({ ai_fullsummary: fullSummary })
+                .eq('id', emailid)
+            
+                if (error) {
+                    console.error("Supabase Update Error:", error);
+                    throw error;
+                }
+
+            return fullSummary || "";
+        }
     }
 }
