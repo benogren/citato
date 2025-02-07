@@ -51,6 +51,8 @@ export default async function AuthButton() {
   return user ? (
     <div>
       <nav className="flex gap-2 items-center">
+        {/* <Link href="/bookmarks" className="text-md text-gray-500 font-normal">Bookmarks</Link> */}
+
         <Link href="/settings" className="text-md text-gray-500 font-normal">Settings</Link>
 
         <form action={signOutAction}>

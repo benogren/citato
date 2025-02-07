@@ -1,27 +1,6 @@
-//import Link from 'next/link';
 import Header from '../../components/header';
 import { createClient } from "@/utils/supabase/server";
 import Roundup from './roundup';
-//import { getTodaysSubscribedEmails } from './gmailroundup';
-//import SubscriptionEmails from './SubscriptionEmails';
-
-// async function fetchSubData(pageUserId: string) {
-//   const supabase = await createClient();
-//   const googleTeam = "09524579-5fbf-451b-8499-2d011b8e1536";
-//   const { data, error } = await supabase
-//     .from('user_subscriptions')
-//     .select('updated_at, newsletter_senders(name, id, email_address)')
-//     .eq('userId', pageUserId)
-//     .not('newsletterId', 'eq', googleTeam)
-//     .order('updated_at', { ascending: false });
-
-//   if (error) {
-//     console.error('Error fetching subscriptions:', error);
-//     return null;
-//   }
-
-//   return data;
-// }
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -36,10 +15,6 @@ export default async function HomePage() {
       </div>
     );
   }
-
-  //const userSubs = await fetchSubData(user.id);
-  //const getsubscriptionEmails = await getTodaysSubscribedEmails(user.id);
-  //const userName = user.user_metadata?.first_name || "User";
 
   return (
     <>
