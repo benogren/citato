@@ -29,8 +29,8 @@ async function fetchTodaysEmails(pageUserId: string): Promise<NewsletterEmail[]>
     const endOfDay = new Date(today + "Z");
     startOfDay.setHours(0, 0, 0);
     endOfDay.setHours(23, 59, 59, 999);
-    startOfDay.setHours(startOfDay.getHours() + 4);
-    endOfDay.setHours(endOfDay.getHours() + 4);
+    startOfDay.setHours(startOfDay.getHours() - 4);
+    endOfDay.setHours(endOfDay.getHours() - 4);
 
     console.log('today', today.toISOString());
     console.log('startOfDay', startOfDay.toISOString());
