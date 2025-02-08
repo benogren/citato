@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import RenderHTML from './RenderHTML';
+import RenderHTML from '../../../components/RenderHTML';
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 

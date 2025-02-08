@@ -22,7 +22,7 @@ export default async function HomePage() {
       <div className="container mx-auto">
         <h1 className="text-3xl font-bold py-16">Welcome to Citato</h1>
 
-        <h2 className="text-2xl font-normal pb-4">Today&#39;s Roundup</h2>
+        <h2 className="text-2xl font-normal pb-4">Your Roundup</h2>
         <hr />
         <div className="pb-10">
           <Roundup pageUserId={user.id}/>

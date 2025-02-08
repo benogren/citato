@@ -18,10 +18,7 @@ export default async function ReadEmailPage(props: { params: paramsType }) {
                             <FetchEmail emailId={emailId} />
                         </div>
                     </div>
-
-                    
-                        <FetchAI emailId={emailId} />
-                    
+                    <FetchAI emailId={emailId} />
                 </div>
             </div>
         </div>
