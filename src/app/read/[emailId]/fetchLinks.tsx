@@ -30,12 +30,7 @@ console.log('Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
 const supabase = createClient();
 
-export default function FetchAI({ emailId }: FetchAIProps) {
-    const [received_at, setReceivedAt] = useState<string>('');
-    const [subject, setSubject] = useState<string>('');
-    const [from_name, setFromName] = useState<string>('');
-    const [ai_summary, setAISummary] = useState<string>('');
-    const [ai_fullsummary, setAIFullSummary] = useState<string>('');
+export default function FetchLinks({ emailId }: FetchAIProps) {
     const [ai_links, setAILinks] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [loading, setLoading] = useState(true);
@@ -86,20 +81,7 @@ export default function FetchAI({ emailId }: FetchAIProps) {
       if (!data || data.length === 0) throw new Error(`No data found for ID: ${emailId}`);
 
       const newsletterData = data[0];
-      setAISummary(newsletterData.ai_summary || '');
-      setReceivedAt(newsletterData.received_at || '');
-      setSubject(newsletterData.subject || '');
-      setFromName(newsletterData.from_name || '');
       const decodedContent = decodeBase64(newsletterData.html_base64 || '');
-
-      if (!newsletterData.ai_fullsummary) {
-        const genai_summary = await summeryAction(decodedContent, emailId);
-
-        setAIFullSummary(genai_summary || '');
-
-      } else {
-        setAIFullSummary(newsletterData.ai_fullsummary || '');
-      }
 
       if (!newsletterData.ai_links) {
         const genai_links = await linkAction(decodedContent || '', emailId);
@@ -120,22 +102,14 @@ export default function FetchAI({ emailId }: FetchAIProps) {
 
   if (loading) return (
     <>
-    <div className="animate-pulse w-100%">
-        <p className='text-xs text-gray-600 pb-6'><FontAwesomeIcon icon={faSpinner} className="animate-spin text-xs text-gray-600" /> Generating key points...</p>
-        <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1 h-2 rounded bg-gray-200"></div>
-            </div>
-            <div className="h-6 rounded bg-gray-200"></div>
-            <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1 h-4 rounded bg-gray-200"></div>
-            </div>
-        </div>
-
+    <div className="animate-pulse w-100% mt-6">
+        <p className='text-xs text-gray-600'><FontAwesomeIcon icon={faSpinner} className="animate-spin text-xs text-gray-600" /> Looking for interesting links...</p>
         <div className="space-y-3 pt-8">
             <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-1 h-4 rounded bg-gray-200"></div>
             </div>
+            <div className="h-2 rounded bg-gray-200"></div>
+            <div className="h-2 rounded bg-gray-200"></div>
             <div className="h-2 rounded bg-gray-200"></div>
             <div className="h-2 rounded bg-gray-200"></div>
             <div className="h-2 rounded bg-gray-200"></div>
@@ -148,24 +122,14 @@ export default function FetchAI({ emailId }: FetchAIProps) {
 
   return (
     <>
-    <div className='pb-4'>
-        <span className="text-xs text-gray-500"><TimeAgo date={new Date(received_at).toISOString()} /></span>
-        <h2 className="text-xl font-bold leading-none pt-2">{subject}</h2>
-        <h3 className="text-sm font-normal pb-2 text-gray-600">{from_name}</h3>
-    </div>
-
 
     <div
         className="whitespace-normal text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline"
         dangerouslySetInnerHTML={{
-            __html: Marked.parse(ai_summary),}}
+            __html: Marked.parse(ai_links),}}
     />
 
-    <div
-        className="whitespace-normal text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline"
-        dangerouslySetInnerHTML={{
-            __html: Marked.parse(ai_fullsummary),}}
-    />
+
     </>
   );
 }

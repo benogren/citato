@@ -1,6 +1,7 @@
 import Header from '../../../components/header';
 import FetchEmail from './fetchEmail';
 import FetchAI from './fetchAI';
+import FetchLinks from './fetchLinks';
 
 export type paramsType = Promise<{ emailId: string }>;
 
@@ -18,7 +19,15 @@ export default async function ReadEmailPage(props: { params: paramsType }) {
                             <FetchEmail emailId={emailId} />
                         </div>
                     </div>
+                    <div className="flex flex-col m-8 pl-8">
                     <FetchAI emailId={emailId} />
+
+                    <FetchLinks emailId={emailId} />
+
+                    <p className='text-xs text-gray-400 pt-4'>
+                        Summary and links are generated using AI, and may have mistakes.<br/>Please double-check responses.
+                    </p>
+                    </div>
                 </div>
             </div>
         </div>
