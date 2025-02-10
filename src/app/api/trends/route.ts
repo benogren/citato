@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchEmbeddings } from '@/lib/supabase';
 import { groupSimilarTopics } from '@/lib/trendAnalysis';
 
-export async function GET(req: Request, res: Response) {
+export async function GET(req: Request) {
     if (req.method !== 'GET') {
       return NextResponse.json(
         { error: "Method Not Allowed" },

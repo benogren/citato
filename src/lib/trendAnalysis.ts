@@ -8,7 +8,7 @@ export function groupSimilarTopics(data: { id: string; text: string; embedding: 
 
   console.log('Received data in groupSimilarTopics:', JSON.stringify(data, null, 2));
 
-  let clusters: { [key: string]: { id: string; text: string; embedding: number[] }[] } = {};
+  const clusters: { [key: string]: { id: string; text: string; embedding: number[] }[] } = {};
 
   for (const item of data) {
       let matchedCluster = null;

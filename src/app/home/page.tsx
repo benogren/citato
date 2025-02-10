@@ -1,7 +1,7 @@
 import Header from '../../components/header';
 import { createClient } from "@/utils/supabase/server";
 import Roundup from './roundup';
-import TrendingTopics from '../../components/TrendingTopics.tsx';
+// import TrendingTopics from '../../components/TrendingTopics.tsx';
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -22,11 +22,11 @@ export default async function HomePage() {
       <Header />
       <div className="container mx-auto">
         <h1 className="text-3xl font-bold py-16">Welcome to Citato</h1>
-        <h2 className="text-2xl font-normal pb-4">Trends</h2>
+        {/* <h2 className="text-2xl font-normal pb-4">Trends</h2>
         <hr />
         <div className="pb-10">
           <TrendingTopics />
-        </div>
+        </div> */}
 
         <h2 className="text-2xl font-normal pb-4">Your Roundup</h2>
         <hr />
