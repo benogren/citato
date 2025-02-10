@@ -41,6 +41,8 @@
     "class-variance-authority": "^0.7.1",
     "cloudmailin": "^0.1.0",
     "clsx": "^2.1.1",
+    "compute-cosine-similarity": "^1.1.0",
+    "cosine-similarity": "^1.0.1",
     "dompurify": "^3.2.3",
     "dotenv": "^16.4.7",
     "elevenlabs": "^1.50.4",
