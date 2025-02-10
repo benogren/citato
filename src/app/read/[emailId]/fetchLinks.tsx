@@ -2,8 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import linkAction from './linkAction';
-import summeryAction from './summeryAction';
-import TimeAgo from 'react-timeago';
 import { Marked } from '@ts-stack/markdown';
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";

@@ -1,7 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import linkAction from './linkAction';
 import summeryAction from './summeryAction';
 import TimeAgo from 'react-timeago';
 import { Marked } from '@ts-stack/markdown';
@@ -36,7 +35,6 @@ export default function FetchAI({ emailId }: FetchAIProps) {
     const [from_name, setFromName] = useState<string>('');
     const [ai_summary, setAISummary] = useState<string>('');
     const [ai_fullsummary, setAIFullSummary] = useState<string>('');
-    const [ai_links, setAILinks] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [loading, setLoading] = useState(true);
 
@@ -99,15 +97,6 @@ export default function FetchAI({ emailId }: FetchAIProps) {
 
       } else {
         setAIFullSummary(newsletterData.ai_fullsummary || '');
-      }
-
-      if (!newsletterData.ai_links) {
-        const genai_links = await linkAction(decodedContent || '', emailId);
-
-        setAILinks(genai_links || '');
-
-      } else {
-        setAILinks(newsletterData.ai_links || '');
       }
 
     } catch (err) {
