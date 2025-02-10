@@ -15,7 +15,7 @@ export default async function BookMarkPage() {
         <>
         <Header />
         <div className="bg-gray-100">
-            <div className="w-1/2 mx-auto">
+            <div className="mx-auto sm:w-full md:w-1/2 lg:w-1/2">
                 <div className="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16">
                 <p className="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 lg:px-48 dark:text-gray-400">
                     Save a bookmark

@@ -85,7 +85,7 @@ export default function BookmarksDisplay({ userId }: BookmarksDisplayProps) {
           <div className="mt-6">
               <Link
                   href={`/readlink/${bookmark.id}`}
-                  className="text-gray-700 py-2 px-4 border rounded-md"
+                  className="text-gray-700 py-2 px-4 border rounded-md text-sm mb-6 hover:bg-gray-100"
                   >
                       Read More
               </Link>

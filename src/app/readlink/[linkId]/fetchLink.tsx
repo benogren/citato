@@ -7,6 +7,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import TimeAgo from 'react-timeago';
 import LinkList from './LinkList';
 import Link from 'next/link';
+import { Marked } from '@ts-stack/markdown';
+import DOMPurify from 'dompurify';
 
 interface LinkData {
   id: string;
@@ -59,7 +61,8 @@ export default function FetchLink({ linkId }: FetchLinkProps) {
       if (!data || data.length === 0) throw new Error(`No data found for ID: ${linkId}`);
 
       const linkContentData = data[0];
-      setHtmlContent(linkContentData.html || '');
+      const cleanHTML = DOMPurify.sanitize(linkContentData.markdown || '');
+      setHtmlContent(cleanHTML || '');
       setCreatedAt(linkContentData.created_at || '');
       setTitle(linkContentData.title || '');
       setAuthor(linkContentData.author || '');
@@ -180,8 +183,9 @@ export default function FetchLink({ linkId }: FetchLinkProps) {
                     <div className="bg-white shadow-lg rounded-md my-8 w-[674px] p-2 whitespace-normal [&_img]:w-[670px]">
                         {/* <RenderHTML htmlContent={htmlContent} /> */}
                         <div
-                            className="whitespace-normal text-gray-600 p-6 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline [&_table]:w-full [&_table]:mb-4 [&_thead]:uppercase [&_thead]:bg-gray-50 [&_pre]:p-4 [&_tr]:border-b [&_tr]:border-gray-200 [&_thead]:text-sm [&_th]:px-6 [&_th]:py-4 [&_td]:px-6 [&_td]:py-4 [&_th]:font-medium [&_th]:text-gray-900 [&_th]:whitespace-nowrap [&_pre]:whitespace-pre-line [&_pre]:bg-gray-100 [&_pre]:text-xs [&_pre]:mb-4 [&_pre]:rounded-md"
-                            dangerouslySetInnerHTML={{__html: htmlContent}}
+                            className="whitespace-normal text-gray-600 p-6 [&_h3]:pb-2 [&_h1]:font-semibold [&_h1]:text-xl [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:font-semibold [&_h4]:font-semibold [&_h5]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline [&_table]:w-full [&_table]:mb-4 [&_thead]:uppercase [&_thead]:bg-gray-50 [&_pre]:p-4 [&_tr]:border-b [&_tr]:border-gray-200 [&_thead]:text-sm [&_th]:px-6 [&_th]:py-4 [&_td]:px-6 [&_td]:py-4 [&_th]:font-medium [&_th]:text-gray-900 [&_th]:whitespace-nowrap [&_pre]:whitespace-pre-line [&_pre]:bg-gray-100 [&_pre]:text-xs [&_pre]:mb-4 [&_pre]:rounded-md"
+                            dangerouslySetInnerHTML={{
+                                __html: Marked.parse(htmlContent),}}
                         />
                     </div>
                 </div>
@@ -194,7 +198,7 @@ export default function FetchLink({ linkId }: FetchLinkProps) {
                             {ai_summary}
                         </p>
                         <p className='items-center text-sm mt-4'>
-                            <Link href={url} target='_blank' className="text-gray-700 py-2 px-4 border rounded-md items-center">View Original <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs text-gray-400" /></Link>
+                            <Link href={url} target='_blank' className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors">View Original <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs text-white" /></Link>
                         </p>
                         <p className='text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline'>
                             <LinkList links={links} />
