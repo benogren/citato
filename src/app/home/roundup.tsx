@@ -82,7 +82,7 @@ export default async function Roundup({ pageUserId }: { pageUserId: string }) {
       author: email.from_name || email.from_email,
       timestamp: email.received_at,
       summary: email.ai_summary,
-      style: "border rounded-lg p-4 shadow-sm border-t-4 border-t-sky-500"
+      style: "border rounded-lg p-4 shadow-sm border-t-4 border-t-indigo-600"
     })),
     ...bookmarks.map(bookmark => ({
       id: bookmark.id,
@@ -92,7 +92,7 @@ export default async function Roundup({ pageUserId }: { pageUserId: string }) {
       timestamp: bookmark.created_at,
       summary: bookmark.ai_summary,
       url: bookmark.url,
-      style: "border rounded-lg p-4 shadow-sm border-t-4 border-t-blue-400"
+      style: "border rounded-lg p-4 shadow-sm border-t-4 border-t-violet-400"
     }))
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 

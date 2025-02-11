@@ -14,12 +14,12 @@ export default async function BookMarkPage() {
     return(
         <>
         <Header />
-        <div className="bg-gray-100">
+        <div className="bg-gradient-to-bl from-violet-600 to-indigo-800">
             <div className="mx-auto sm:w-full md:w-1/2 lg:w-1/2">
                 <div className="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16">
-                <p className="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 lg:px-48 dark:text-gray-400">
+                <h2 className="text-2xl text-gray-200 pb-6">
                     Save a bookmark
-                </p>
+                </h2>
                 <form className="flex gap-2 items-center">
                 <Input
                     name="user_id"
@@ -35,7 +35,7 @@ export default async function BookMarkPage() {
                 <SubmitButton
                     pendingText="Saving..."
                     formAction={linkSaveAction}
-                    className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors"
+                    className="border text-white py-2 px-4 rounded-md hover:bg-gray-100 hover:text-indigo-500 transition-colors"
                 >
                     Save
                 </SubmitButton>

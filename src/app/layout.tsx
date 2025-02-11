@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Citato",
-  description: "An AI companion for your newsletters",
+  title: "citato.ai",
+  description: "Your AI-powered reading companion",
 };
 
 export default function RootLayout({
@@ -27,13 +27,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} >
         <Theme>
         {children}
         <footer className="container mx-auto py-8 text-center text-sm text-gray-500">
-          citato &copy; 2025 - All rights reserved
+          citato.ai &copy; 2025 - All rights reserved
           </footer>
         </Theme>
       </body>
