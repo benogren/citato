@@ -36,7 +36,6 @@ interface GmailResponse {
 }
 
 function parseFromHeader(fromString: string): { email: string; name: string } {
-  // Remove any extra angle brackets that might exist
   const cleanString = fromString.replace(/>>/g, '>').replace(/<</, '<');
   const regex = /^(?:"?([^"]*?)"?\s*)?(?:<([^>]+)>|([^\s]+@[^\s]+))$/;
   const match = cleanString.match(regex);
@@ -48,7 +47,6 @@ function parseFromHeader(fromString: string): { email: string; name: string } {
     return { name, email };
   }
 
-  // Fallback: try to find just an email address
   const emailMatch = cleanString.match(/([^\s]+@[^\s]+)/);
   return {
     name: '',
@@ -58,12 +56,12 @@ function parseFromHeader(fromString: string): { email: string; name: string } {
 
 const LoadingState = () => (
   <>
-  <div className="container mx-auto">
-    <div className='items-center flex pb-4'>
-      <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
-        <FontAwesomeIcon  icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
-      </Link>
-      <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
+    <div className="container mx-auto">
+      <div className='items-center flex pb-4'>
+        <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
+          <FontAwesomeIcon icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
+        </Link>
+        <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
       </div>
       <hr />
       <div className="flex flex-col items-center justify-center min-h-screen">
@@ -74,18 +72,18 @@ const LoadingState = () => (
           <p className="text-sm text-gray-600">This should take less than a minute</p>
         </div>
       </div>
-  </div>
+    </div>
   </>
 );
 
 const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
   <>
-  <div className="container mx-auto">
-    <div className='items-center flex pb-4'>
-      <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
-        <FontAwesomeIcon  icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
-      </Link>
-      <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
+    <div className="container mx-auto">
+      <div className='items-center flex pb-4'>
+        <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
+          <FontAwesomeIcon icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
+        </Link>
+        <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
       </div>
       <hr />
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -94,7 +92,7 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
         </div>
         <Button onClick={onRetry}>Try Again</Button>
       </div>
-  </div>
+    </div>
   </>
 );
 
@@ -106,15 +104,36 @@ export default function SubscriptionsPage() {
   const [success, setSuccess] = useState(false);
   const supabase = createClient();
 
+  const fetchExistingSubscriptions = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('No user found');
+
+      const { data: subscriptions, error } = await supabase
+        .from('subscriptions')
+        .select('from_email')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      return new Set(subscriptions.map(sub => sub.from_email.toLowerCase()));
+    } catch (error) {
+      console.error('Error fetching existing subscriptions:', error);
+      throw error;
+    }
+  };
+
   const fetchEmails = async () => {
     try {
       setLoading(true);
       setError(null);
 
+      const existingSubs = await fetchExistingSubscriptions();
+
       const response = await fetch('/api/email');
       
       if (!response.ok) {
-        // Try to parse error message if available
         let errorMessage = 'Failed to fetch emails';
         try {
           const errorData = await response.text();
@@ -125,10 +144,7 @@ export default function SubscriptionsPage() {
         throw new Error(errorMessage);
       }
 
-      // Only try to parse JSON if response is OK
       const data = await response.json() as GmailResponse;
-
-      // Create a Map to store unique senders
       const sendersMap = new Map<string, Sender>();
 
       if (!data.messages?.messages) {
@@ -142,23 +158,28 @@ export default function SubscriptionsPage() {
       
         if (fromHeader) {
           const { email, name } = parseFromHeader(fromHeader);
-          if (!sendersMap.has(email)) {
-            sendersMap.set(email, {
-              email,
-              name,
-              checked: false,
-              labels: message.labelNames || []
-            });
-          } else {
-            // Merge labels for existing sender
-            const existingSender = sendersMap.get(email)!;
-            const newLabels = message.labelNames || [];
-            existingSender.labels = Array.from(new Set([...existingSender.labels, ...newLabels]));
+          const normalizedEmail = email.toLowerCase();
+          
+          if (!existingSubs.has(normalizedEmail)) {
+            if (!sendersMap.has(email)) {
+              // Create new sender entry
+              sendersMap.set(email, {
+                email,
+                name,
+                checked: false,
+                labels: message.labelNames || []
+              });
+            } else {
+              // Merge labels for existing sender
+              const existingSender = sendersMap.get(email)!;
+              const newLabels = message.labelNames || [];
+              existingSender.labels = Array.from(new Set([...existingSender.labels, ...newLabels]));
+              sendersMap.set(email, existingSender);
+            }
           }
         }
       });
 
-      // Convert map to array and sort alphabetically by email
       const sendersArray = Array.from(sendersMap.values())
         .sort((a, b) => a.email.localeCompare(b.email));
 
@@ -235,17 +256,17 @@ export default function SubscriptionsPage() {
   return (
     <div className="container mx-auto">
       <div className='items-center flex pb-4'>
-      <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
-        <FontAwesomeIcon  icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
-      </Link>
-      <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
+        <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
+          <FontAwesomeIcon icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
+        </Link>
+        <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
       </div>
       <hr />
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <div>
             <p className="text-gray-600">
-              Found {senders.length} unique senders
+              Found {senders.length} new senders
             </p>
           </div>
           <div className="flex items-center gap-4">
