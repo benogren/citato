@@ -54,10 +54,10 @@ export default async function SubscriptionPage() {
                     </div>
                 ))
             ) : (
-                <div>
+                <div className="col-span-full text-center text-gray-500 py-8">
                 No subscriptions found.
-                <Link href="/subscriptions" className="text-blue-500 ml-2">
-                    Manage subscriptions
+                <Link href="/find-subscriptions" className="text-blue-500 ml-2">
+                    Find subscriptions
                 </Link>
                 </div>
             )}

@@ -99,7 +99,12 @@ export default async function Roundup({ pageUserId }: { pageUserId: string }) {
    return (
        <div className="space-y-4 p-4">
       {content.length === 0 ? (
-        <p className="text-gray-500">No content found</p>
+        <div className="col-span-full text-center text-gray-500 py-8">
+          No content yet.
+          <Link href="/subscriptions" className="text-blue-500 ml-2">
+            Manage newsletters
+          </Link>
+        </div>
       ) : (
         content.map((item) => (
           <div key={item.id} className={item.style}>
