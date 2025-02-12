@@ -45,6 +45,8 @@ export default async function BookMarkPage() {
         </div>
         <div className="flex flex-row">
             <div className="container mx-auto">
+                <h2 className="text-2xl text-gray-600 pb-4 mt-8">Your Bookmarks</h2>
+                <hr />
                 <BookmarksDisplay userId={user_id} />
             </div>
         </div>

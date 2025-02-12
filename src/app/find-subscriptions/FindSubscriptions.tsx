@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import Link from 'next/link';
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faChevronLeft } from "@fortawesome/free-solid-svg-icons";
 
 interface Sender {
   email: string;
@@ -54,23 +57,45 @@ function parseFromHeader(fromString: string): { email: string; name: string } {
 }
 
 const LoadingState = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mb-4"></div>
-    <div className="text-center">
-      <p className="text-lg font-semibold">Loading your emails...</p>
-      <p className="text-sm text-gray-600 mt-2">Analyzing your emails from the last month</p>
-      <p className="text-sm text-gray-600">This should take less than a minute</p>
-    </div>
+  <>
+  <div className="container mx-auto">
+    <div className='items-center flex pb-4'>
+      <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
+        <FontAwesomeIcon  icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
+      </Link>
+      <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
+      </div>
+      <hr />
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mb-4"></div>
+        <div className="text-center">
+          <p className="text-lg font-semibold">Loading your emails...</p>
+          <p className="text-sm text-gray-600 mt-2">Analyzing your emails from the last month</p>
+          <p className="text-sm text-gray-600">This should take less than a minute</p>
+        </div>
+      </div>
   </div>
+  </>
 );
 
 const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-  <div className="flex flex-col items-center justify-center min-h-screen p-4">
-    <div className="mb-4 p-4 bg-red-50 text-red-600 rounded-md max-w-md">
-      {message}
-    </div>
-    <Button onClick={onRetry}>Try Again</Button>
+  <>
+  <div className="container mx-auto">
+    <div className='items-center flex pb-4'>
+      <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
+        <FontAwesomeIcon  icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
+      </Link>
+      <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
+      </div>
+      <hr />
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="mb-4 p-4 bg-red-50 text-red-600 rounded-md max-w-md">
+          {message}
+        </div>
+        <Button onClick={onRetry}>Try Again</Button>
+      </div>
   </div>
+  </>
 );
 
 export default function SubscriptionsPage() {
@@ -209,10 +234,16 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="container mx-auto">
+      <div className='items-center flex pb-4'>
+      <Link href={`/subscriptions`} className="text-gray-700 py-2 px-2 border rounded-md text-sm hover:bg-gray-100 mr-4">
+        <FontAwesomeIcon  icon={faChevronLeft} className="text-indigo-400 size-4 mx-auto" />
+      </Link>
+      <h2 className="text-2xl text-gray-600">New Subscriptions from Gmail</h2>
+      </div>
+      <hr />
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Find Subscriptions</h1>
             <p className="text-gray-600">
               Found {senders.length} unique senders
             </p>

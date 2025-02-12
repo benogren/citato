@@ -326,6 +326,22 @@ serve(async (req: Request) => {
 
           const savedEmbedding = contentEmbedding.data[0].embedding;
 
+          // Generate Key Takeaways
+          const completionKeyPoints = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { 
+                    role: "system", 
+                    content: "You will be provided newsletter content, and your task is to find keypoints from the content and list them as follows,:\n###Key Takeaways(pull out any interesting points, facts, or takeaways from the article's content)" 
+                },
+                {
+                    role: "user",
+                    content: toSummarize,
+                },
+            ],
+        });
+        const fullSummary = completionKeyPoints.choices[0].message.content;
+
           // Insert into database
           const { error: insertError } = await supabase
             .from('newsletter_emails')
@@ -340,6 +356,7 @@ serve(async (req: Request) => {
               html_base64: htmlPart?.body?.data,
               plain_text: plainText,
               ai_summary: contentSummary,
+              ai_fullsummary: fullSummary,
               embeddings: savedEmbedding,
             }, {
               onConflict: 'user_id,message_id'

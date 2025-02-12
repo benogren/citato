@@ -4,6 +4,9 @@ import Link from "next/link";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { createClient } from "@/utils/supabase/server";
+// import { json } from "stream/consumers";
+import { Avatar, Dropdown, DropdownDivider, DropdownHeader, DropdownItem } from "flowbite-react";
+
 
 export default async function AuthButton() {
   const supabase = await createClient();
@@ -11,6 +14,13 @@ export default async function AuthButton() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // console.log("User:", user);
+
+  const avatar_url = user?.user_metadata?.avatar_url || "";
+  const full_name = user?.user_metadata?.full_name || "";
+  const email = user?.email || "";
+
 
   if (!hasEnvVars) {
     return (
@@ -49,18 +59,28 @@ export default async function AuthButton() {
     );
   }
   return user ? (
-    <div>
-      <nav className="flex gap-3 items-center">
-        <Link href="/bookmarks" className="text-md text-gray-500 font-normal">Bookmarks</Link>
+    <div className="flex gap-4 items-center">
+      <Link href="/bookmarks" className="text-md text-gray-500 font-normal">Bookmarks</Link>
 
-        <Link href="/settings" className="text-md text-gray-500 font-normal">Settings</Link>
+      <Link href="/subscriptions" className="text-md text-gray-500 font-normal">Newsletters</Link>
 
-        <form action={signOutAction}>
-          <Button type="submit" variant={"outline"} className="text-left w-full p-0 m-0 ml-1 border-none text-gray-500 font-normal text-md">
-            Sign out
-          </Button>
-        </form>
-      </nav>
+      <Dropdown
+      label={<Avatar alt="User settings" img={avatar_url} rounded size="sm" bordered color="purple" />}
+      arrowIcon={false}
+      inline
+      >
+      <DropdownHeader>
+        <span className="block text-sm">{full_name}</span>
+        <span className="block truncate text-sm font-medium">{email}</span>
+      </DropdownHeader>
+        <DropdownItem>
+          <Link href="/settings">Settings</Link>
+        </DropdownItem>
+        <DropdownDivider />
+        <DropdownItem>
+          <Link href="#" onClick={signOutAction}>Sign out</Link>
+        </DropdownItem>
+      </Dropdown>
     </div>
   ) : (
     <div className="flex gap-2">
