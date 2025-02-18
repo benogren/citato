@@ -4,9 +4,12 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { cookies } from 'next/headers';
 import { gmail_v1 } from 'googleapis';
-import { GaxiosResponse } from 'gaxios';
+//import { GaxiosResponse } from 'gaxios';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const CONCURRENT_BATCH_SIZE = 5; // Number of concurrent batch requests
+const MESSAGES_PER_BATCH = 25;   // Messages to process in each batch
+const MAX_TOTAL_MESSAGES = 500;  // Reduced from 1000 to prevent timeouts
+const RATE_LIMIT_DELAY = 50;     // Increased delay between batches
 
 interface ExtendedGmailMessage extends gmail_v1.Schema$Message {
   labelNames?: string[];
@@ -14,25 +17,48 @@ interface ExtendedGmailMessage extends gmail_v1.Schema$Message {
 
 function getDateRange() {
   const today = new Date();
-  const endDate = today.getFullYear() + '/' + 
-                 String(today.getMonth() + 1).padStart(2, '0') + '/' + 
-                 String(today.getDate()).padStart(2, '0');
-
-  // Restore to full month
+  const endDate = today.toISOString().split('T')[0].replace(/-/g, '/');
+  
   const startDate = new Date();
   startDate.setDate(1);
   startDate.setMonth(startDate.getMonth() - 1);
-  const startDateString = startDate.getFullYear() + '/' + 
-                         String(startDate.getMonth() + 1).padStart(2, '0') + '/' + 
-                         '01';
+  return { 
+    startDate: startDate.toISOString().split('T')[0].replace(/-/g, '/'), 
+    endDate 
+  };
+}
 
-  return { startDate: startDateString, endDate };
+async function processMessageBatch(
+  gmail: gmail_v1.Gmail,
+  messages: gmail_v1.Schema$Message[],
+  retryCount = 0
+): Promise<ExtendedGmailMessage[]> {
+  try {
+    const batchResults = await Promise.all(
+      messages.map(message =>
+        gmail.users.messages.get({
+          userId: 'me',
+          id: message.id!,
+          format: 'metadata',
+          metadataHeaders: ['From', 'Date', 'Subject']
+        })
+      )
+    );
+    return batchResults.map(r => r.data);
+  } catch (error) {
+    if (retryCount < 3) {  // Implement retry logic
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+      return processMessageBatch(gmail, messages, retryCount + 1);
+    }
+    throw error;
+  }
 }
 
 export async function GET() {
   const supabase = await createClient();
   
   try {
+    // Auth validation
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) {
       return new NextResponse(
@@ -41,6 +67,7 @@ export async function GET() {
       );
     }
 
+    // Token validation
     const cookieStore = await cookies();
     const accessToken = cookieStore.get('provider_token')?.value;
     const refreshToken = cookieStore.get('provider_refresh_token')?.value;
@@ -54,6 +81,7 @@ export async function GET() {
       );
     }
 
+    // Initialize Gmail client
     const oauth2Client = new OAuth2Client({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -68,36 +96,14 @@ export async function GET() {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     const { startDate, endDate } = getDateRange();
 
-    // Fetch all messages with pagination
-    let allMessages: gmail_v1.Schema$Message[] = [];
-    let pageToken: string | undefined = undefined;
+    // Initial message list fetch with optimization
+    const initialResponse = await gmail.users.messages.list({
+      userId: 'me',
+      maxResults: MAX_TOTAL_MESSAGES,
+      q: `after:${startDate} before:${endDate} (in:inbox OR in:anywhere -in:sent -in:spam -in:trash)`
+    });
 
-    do {
-      const response: GaxiosResponse<gmail_v1.Schema$ListMessagesResponse> = await gmail.users.messages.list({
-        userId: 'me',
-        maxResults: 500,
-        pageToken: pageToken,
-        q: `after:${startDate} before:${endDate} (in:inbox OR in:anywhere -in:sent -in:spam -in:trash)`
-      });
-
-      if (response.data.messages) {
-        allMessages = allMessages.concat(response.data.messages);
-      }
-
-      pageToken = response.data.nextPageToken || undefined;
-      
-      // Limit to 1000 messages total to prevent timeouts
-      if (allMessages.length >= 1000) {
-        console.log('Reached 1000 message limit');
-        break;
-      }
-
-      if (pageToken) {
-        await delay(20); // Short delay between pagination requests
-      }
-    } while (pageToken);
-
-    if (allMessages.length === 0) {
+    if (!initialResponse.data.messages) {
       return new NextResponse(
         JSON.stringify({
           messages: { messages: [], resultSizeEstimate: 0 }
@@ -106,29 +112,24 @@ export async function GET() {
       );
     }
 
-    // Process messages in optimized batches
+    // Process messages in concurrent batches
+    const messages = initialResponse.data.messages.slice(0, MAX_TOTAL_MESSAGES);
     const processedMessages: ExtendedGmailMessage[] = [];
-    const batchSize = 15; // Balanced batch size
-
-    for (let i = 0; i < allMessages.length; i += batchSize) {
-      const batch = allMessages.slice(i, i + batchSize);
+    
+    for (let i = 0; i < messages.length; i += CONCURRENT_BATCH_SIZE * MESSAGES_PER_BATCH) {
+      const batchPromises = [];
       
-      const batchResults = await Promise.all(
-        batch.map(message => 
-          gmail.users.messages.get({
-            userId: 'me',
-            id: message.id!,
-            format: 'metadata',
-            metadataHeaders: ['From', 'Date', 'Subject']
-          })
-        )
-      );
+      for (let j = 0; j < CONCURRENT_BATCH_SIZE && i + j * MESSAGES_PER_BATCH < messages.length; j++) {
+        const start = i + j * MESSAGES_PER_BATCH;
+        const batch = messages.slice(start, start + MESSAGES_PER_BATCH);
+        batchPromises.push(processMessageBatch(gmail, batch));
+      }
 
-      processedMessages.push(...batchResults.map(r => r.data));
-      
-      // Add small delay between batches to prevent rate limiting
-      if (i + batchSize < allMessages.length) {
-        await delay(20);
+      const batchResults = await Promise.all(batchPromises);
+      processedMessages.push(...batchResults.flat());
+
+      if (i + CONCURRENT_BATCH_SIZE * MESSAGES_PER_BATCH < messages.length) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
       }
     }
 
@@ -136,7 +137,7 @@ export async function GET() {
       JSON.stringify({
         messages: {
           messages: processedMessages,
-          resultSizeEstimate: allMessages.length
+          resultSizeEstimate: messages.length
         }
       }),
       { 
