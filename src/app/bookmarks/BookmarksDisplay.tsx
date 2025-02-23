@@ -10,7 +10,7 @@ interface BookmarksDisplayProps {
 }
 
 export default function BookmarksDisplay({ userId }: BookmarksDisplayProps) {
-  const [bookmarks, setBookmarks] = useState<{ id: number; title: string; url: string, ai_summary: string, created_at: string }[]>([]);
+  const [bookmarks, setBookmarks] = useState<{ id: number; title: string; url: string, ai_summary: string, created_at: string, status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -37,20 +37,6 @@ export default function BookmarksDisplay({ userId }: BookmarksDisplayProps) {
     }
   }, [userId]);
 
-  // const handleDelete = async (id) => {
-  //   try {
-  //     const { error } = await supabase
-  //       .from('bookmarks')
-  //       .delete()
-  //       .eq('id', id);
-
-  //     if (error) throw error;
-  //     setBookmarks(bookmarks.filter(bookmark => bookmark.id !== id));
-  //   } catch (error) {
-  //     console.error('Error deleting bookmark:', error);
-  //   }
-  // };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -64,6 +50,16 @@ export default function BookmarksDisplay({ userId }: BookmarksDisplayProps) {
     <div className="space-y-4 p-4">
       {bookmarks.map((bookmark) => (
         <div key={bookmark.id} className="border rounded-lg p-4 shadow-sm">
+          {bookmark.status !== 'processed' ? (
+            <div className="flex justify-between items-start">
+            <span className="bg-blue-100 text-blue-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded-sm dark:bg-blue-900 dark:text-blue-300">{bookmark.status}</span>
+            <p className="text-sm text-gray-600">{bookmark.url}</p>
+            <time className="text-sm text-gray-500">
+              <TimeAgo date={new Date(bookmark.created_at).toISOString()} />
+            </time>
+            </div>
+          ) : 
+          <>
           <div className="flex justify-between items-start">
             <div>
               <h3 className="font-medium">
@@ -90,6 +86,8 @@ export default function BookmarksDisplay({ userId }: BookmarksDisplayProps) {
                       Read More
               </Link>
             </div>
+            </>
+            }
         </div>
       ))}
       {bookmarks.length === 0 && (

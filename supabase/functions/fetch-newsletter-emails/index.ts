@@ -306,14 +306,15 @@ serve(async (req: Request) => {
             messages: [
               {
                 role: "system",
-                content: "You will be provided newsletter content, and your task is to provide a short summary paragraph (2 to 3 sentences) of the content matching the tone and voice of the content's original author",
+                content: "You will be provided newsletter content. Generate a concise summary in 500 characters or less, maintaining the voice and tone of the original text. Ensure brevity while preserving key themes and insights.",
               },
               {
                 role: "user",
                 content: toSummarize,
               },
             ],
-          })
+            max_tokens: 150, // Adjust if necessary, but 150 tokens should be close to 500 characters
+          });
 
           const contentSummary = completion.choices[0].message.content
 
@@ -330,16 +331,25 @@ serve(async (req: Request) => {
           const completionKeyPoints = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-                { 
-                    role: "system", 
-                    content: "You will be provided newsletter content, and your task is to find keypoints from the content and list them as follows,:\n###Key Takeaways(pull out any interesting points, facts, or takeaways from the article's content)" 
-                },
-                {
-                    role: "user",
-                    content: toSummarize,
-                },
+              { 
+                role: "system", 
+                content: `You will be provided newsletter content. Identify and list key takeaways as follows:
+          
+                ### Key Takeaways
+                - Summarize major insights, interesting facts, or noteworthy points.
+                - Keep each point clear, concise, and to the point.
+                - Maintain the tone and style of the original content.
+                
+                Provide at least 3-5 key points, but more if necessary.`
+              },
+              {
+                role: "user",
+                content: toSummarize,
+              },
             ],
-        });
+            max_tokens: 200, // Adjust based on expected length of response
+          });
+
         const fullSummary = completionKeyPoints.choices[0].message.content;
 
           // Insert into database

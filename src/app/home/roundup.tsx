@@ -45,6 +45,7 @@ async function fetchTodaysBookmarks(pageUserId: string): Promise<Bookmark[]> {
   const { data, error } = await supabase
     .from('bookmarks')
     .select('*')
+    .eq('status', 'processed')
     .order('created_at', { ascending: false })
     .limit(15);
     
