@@ -352,6 +352,83 @@ serve(async (req: Request) => {
 
         const fullSummary = completionKeyPoints.choices[0].message.content;
 
+        //find links!
+        function extractLinksFromHTML(htmlContent) {
+          // Regular expression to match <a> tags and extract href and text content
+          const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"(?:\s+[^>]*?)?>([^<]*)<\/a>/gi;
+          const links = [];
+          let match;
+        
+          while ((match = linkRegex.exec(htmlContent)) !== null) {
+            const url = match[1].trim();
+            const title = match[2].trim();
+            
+            // Filter out unwanted links
+            if (url && 
+              !url.startsWith("#") && 
+              !url.startsWith("mailto:") && 
+              !url.startsWith("javascript:") && 
+              !url.includes("/contact") && 
+              !url.includes("/about") &&
+              !url.includes("/privacy") &&
+              !url.includes("/terms") &&
+              !url.endsWith(".dtd") &&
+              !url.includes("/DTD/") &&
+              !url.includes("w3.org/TR/") &&
+              !url.includes("schema.org") &&
+              !url.includes("unsubscribe") &&
+              !url.includes("manage-preferences")) {
+              links.push({
+                title: title || null,
+                url: url
+              });
+            }
+          }
+        
+          return JSON.stringify({ links });
+        }
+        
+        // Use the function (no need for await since it's synchronous now)
+        const processedContent = extractLinksFromHTML(htmlBody);
+
+        const completionLinks = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { 
+              role: "system", 
+              content: `You will be provided with a JSON object containing extracted links.  
+              Your task is to format them properly and categorize them when possible.
+              
+              ### **Instructions:**
+              - Ensure links are in **valid JSON format**.
+              - If a title is missing, return **null** instead of guessing.
+              - Categorize links into:
+                - **Videos** (YouTube, Vimeo, etc.)
+                - **News & Articles** (Bloomberg, NYT, WaPo, etc.)
+                - **Author's Own Content** (self-referencing blog links)
+                - **Other**
+              - Return JSON output in this format:
+              
+              {
+                "videos": [ { "title": "Example Video", "url": "https://youtube.com/example" } ],
+                "news_articles": [ { "title": "Example Article", "url": "https://bloomberg.com/example" } ],
+                "author_content": [ { "title": "Author's Blog Post", "url": "https://authorwebsite.com/post" } ],
+                "other": [ { "title": "Miscellaneous Link", "url": "https://other.com/example" } ]
+              }
+              
+              - If no links exist in a category, return an empty array **[]**.
+              `,
+            },
+            {
+              role: "user",
+              content: processedContent,
+            },
+          ],
+          response_format: { type: "json_object" }, // Ensure structured JSON output
+        });
+
+        const foundLinks = completionLinks.choices[0].message.content;
+
           // Insert into database
           const { error: insertError } = await supabase
             .from('newsletter_emails')
@@ -367,6 +444,7 @@ serve(async (req: Request) => {
               plain_text: plainText,
               ai_summary: contentSummary,
               ai_fullsummary: fullSummary,
+              ai_links: foundLinks,
               embeddings: savedEmbedding,
             }, {
               onConflict: 'user_id,message_id'

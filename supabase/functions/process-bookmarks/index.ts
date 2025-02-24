@@ -67,7 +67,7 @@ serve(async (req) => {
                 },
                 {
                 role: "user",
-                content: toSummarize,
+                content: html,
                 },
             ],
             max_tokens: 150, // Adjust if necessary, but 150 tokens should be close to 500 characters

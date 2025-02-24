@@ -2,11 +2,11 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 // import RenderHTML from '../../../components/RenderHTML';
-import { faSpinner, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import TimeAgo from 'react-timeago';
-import LinkList from './LinkList';
-import Link from 'next/link';
+//import LinkList from './LinkList';
+//import Link from 'next/link';
 import { Marked } from '@ts-stack/markdown';
 import DOMPurify from 'dompurify';
 
@@ -19,6 +19,7 @@ interface LinkData {
   markdown: string | null;
   links: string[] | null;
   ai_summary: string;
+  ai_fullysummary: string;
   created_at: string;
 }
 
@@ -37,9 +38,10 @@ export default function FetchLink({ linkId }: FetchLinkProps) {
   const [created_at, setCreatedAt] = useState<string>('');
   const [title, setTitle] = useState<string>('');
   const [author, setAuthor] = useState<string>('');
-  const [url, setUrl] = useState<string>('');
-  const [links, setLinks] = useState<string[]>([]);
+//   const [url, setUrl] = useState<string>('');
+//   const [links, setLinks] = useState<string[]>([]);
   const [ai_summary, setAISummary] = useState<string>('');
+  const [ai_fullysummary, setAIFullySummary] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(true);
   
@@ -66,9 +68,10 @@ export default function FetchLink({ linkId }: FetchLinkProps) {
       setCreatedAt(linkContentData.created_at || '');
       setTitle(linkContentData.title || '');
       setAuthor(linkContentData.author || '');
-      setUrl(linkContentData.url || '');
+    //   setUrl(linkContentData.url || '');
       setAISummary(linkContentData.ai_summary || '');
-      setLinks(linkContentData.links || []);
+      setAIFullySummary(linkContentData.ai_fullysummary || '');
+    //   setLinks(linkContentData.links || []);
 
 
     } catch (err) {
@@ -197,12 +200,14 @@ export default function FetchLink({ linkId }: FetchLinkProps) {
                         <p className='text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline'>
                             {ai_summary}
                         </p>
-                        <p className='items-center text-sm mt-4'>
-                            <Link href={url} target='_blank' className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors">View Original <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs text-white" /></Link>
-                        </p>
-                        <p className='text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline'>
+                        <div
+                            className="whitespace-normal text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline"
+                            dangerouslySetInnerHTML={{
+                                __html: Marked.parse(ai_fullysummary),}}
+                        />
+                        {/* <p className='text-sm text-gray-600 pb-4 [&_h3]:pb-2 [&_h3]:font-semibold [&_li]:pb-2 [&_li:last-child]:pb-4 [&_p]:pb-4 [&_a]:text-blue-500 [&_a:hover]:underline'>
                             <LinkList links={links} />
-                        </p>
+                        </p> */}
                     </div>
                 </div>
             </div>
