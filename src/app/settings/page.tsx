@@ -3,6 +3,10 @@ import { DataList, Badge, Flex, Code } from '@radix-ui/themes';
 import Header from '../../components/header';
 import { createClient } from "@/utils/supabase/server";
 
+export const metadata = {
+  title: 'citato.ai | Settings',
+};
+
 export default async function SettingsPage() {
   const supabase = await createClient();
   const { data: { user }, } = await supabase.auth.getUser();

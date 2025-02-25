@@ -3,10 +3,10 @@ import { createClient } from "@/utils/supabase/server";
 import Roundup from './roundup';
 import SuggestedContent from './suggested';
 
-// export const metadata = {
-//   title: 'Discover New Content',
-//   description: 'Personalized content recommendations based on your interests',
-// };
+export const metadata = {
+  title: 'citato.ai | Home',
+};
+
 
 export default async function HomePage() {
   const supabase = await createClient();

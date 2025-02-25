@@ -5,6 +5,10 @@ import linkSaveAction from './linkSaveAction';
 import { createClient } from "@/utils/supabase/server";
 import BookmarksDisplay from "./BookmarksDisplay";
 
+export const metadata = {
+    title: 'citato.ai | Your Bookmarks',
+};
+
 export default async function BookMarkPage() {
 
     const supabase = await createClient();

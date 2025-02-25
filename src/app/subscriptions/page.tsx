@@ -3,6 +3,10 @@ import { createClient } from "@/utils/supabase/server";
 import Link from 'next/link';
 import TimeAgo from "@/components/time-ago";
 
+export const metadata = {
+  title: 'citato.ai | Your Subscriptions',
+};
+
 export default async function SubscriptionPage() {
   const supabase = await createClient();
   
