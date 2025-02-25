@@ -210,11 +210,13 @@ serve(async (req: Request) => {
         // Get last hour's date
         const today = new Date()
         const lastHour = new Date()
-        lastHour.setHours(lastHour.getHours() - 1)
+        // says last hour but checking every 30 mins! 
+        lastHour.setMinutes(lastHour.getMinutes() - 30)
+        // lastHour.setHours(lastHour.getHours() - 1)
         //const formattedDate = lastHour.toISOString()
         const formattedDate = Math.floor(lastHour.getTime() / 1000)
 
-        console.log("Today:", today, "Last Hour:", lastHour, "Formatted Date:", formattedDate)
+        console.log("Today:", today, "Last 30mins:", lastHour, "Formatted Date:", formattedDate)
 
         // Create OR condition for all subscribed emails
         const fromQueries = (subscriptions as { user_id: string, from_email: string }[])
@@ -353,41 +355,165 @@ serve(async (req: Request) => {
         const fullSummary = completionKeyPoints.choices[0].message.content;
 
         //find links!
-        function extractLinksFromHTML(htmlContent) {
-          // Regular expression to match <a> tags and extract href and text content
-          const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"(?:\s+[^>]*?)?>([^<]*)<\/a>/gi;
-          const links = [];
-          let match;
+        // Check for domain patterns that are likely tracking or newsletter-specific
+  function isTrackingOrNewsletterDomain(url) {
+    const trackingDomains = [
+      'links.morningbrew.com',
+      'email.morningbrew.com',
+      'click.e.', // Common email tracking pattern
+      'links.e.',
+      'track.',
+      'click.',
+      'email-tracking',
+      'mailtrack',
+      'mailchimp',
+      'campaign-',
+      'cta.',
+      'r.mail.',
+      'esp.mail',
+      'click2.',
+      'links.e.',
+      'email.e.',
+      'mail.e.'
+    ];
+    
+    return trackingDomains.some(domain => url.includes(domain));
+  }function extractLinksFromHTML(htmlContent) {
+  // Regular expression to match <a> tags and extract href and text content
+  const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"(?:\s+[^>]*?)?>([^<]*)<\/a>/gi;
+  const links = [];
+  let match;
+
+  // Common newsletter links to filter out
+  const commonUnwantedTexts = [
+    // Navigation and management links
+    'view online', 'view in browser', 'view as webpage', 
+    'sign up', 'subscribe', 'unsubscribe', 'manage preferences',
+    'privacy policy', 'terms of service', 'contact us', 'forward to a friend',
+    'update preferences', 'email preferences', 'email settings', 'browser',
+    'view this email in your browser', 'preferences', 'privacy', 'terms',
+    'here', 'click here', 'read more', 'learn more', 'more info',
+    'advertise', 'careers', 'shop', 'faq', 'help', 'support',
+    
+    // Event signup and promotional content
+    'register', 'registration', 'sign me up', 'join now', 'join us', 'register now',
+    'save my spot', 'reserve', 'reserve my spot', 'reserve your spot', 'secure your spot',
+    'free trial', 'free download', 'free ebook', 'free guide', 'free workshop',
+    'limited time', 'special offer', 'learn more', 'find out more', 
+    'giveaway', 'sweepstakes', 'contest', 'drawing', 'raffle',
+    'webinar', 'workshop', 'masterclass', 'training', 'seminar',
+    'download now', 'get it now', 'get started', 'start now', 'try it free',
+    'claim your', 'claim now', 'claim my', 'rsvp'
+  ];
+
+  while ((match = linkRegex.exec(htmlContent)) !== null) {
+    const url = match[1].trim();
+    const title = match[2].trim();
+    
+          // Skip links with common unwanted text (case insensitive)
+    const titleLower = title.toLowerCase();
+    
+    // Skip single-word generic link texts
+    if (title.length < 5 && !title.includes(" ")) {
+      continue;
+    }
+    
+    // Skip all-caps navigation links (common in footers)
+    if (title === title.toUpperCase() && title.length < 15) {
+      continue;
+    }
+    
+    if (commonUnwantedTexts.some(unwanted => titleLower.includes(unwanted.toLowerCase()))) {
+      continue;
+    }
+    
+    // Skip promotional titles with common phrases
+    if (titleLower.includes("free") || 
+        titleLower.includes("sign up") || 
+        titleLower.includes("register") ||
+        titleLower.includes("event") ||
+        titleLower.includes("offer") ||
+        titleLower.includes("save") ||
+        titleLower.includes("discount") ||
+        titleLower.includes("promotion") ||
+        titleLower.includes("trial") ||
+        titleLower.includes("limited time") ||
+        titleLower.includes("webinar") ||
+        titleLower.includes("workshop") ||
+        titleLower.includes("giveaway") ||
+        titleLower.includes("download") ||
+        titleLower.includes("joining") ||
+        titleLower.includes("join us") ||
+        titleLower.includes("click here")) {
+      continue;
+    }
+      
+      // Filter out unwanted links by URL pattern
+      if (url && 
+        !url.startsWith("#") && 
+        !url.startsWith("mailto:") && 
+        !url.startsWith("javascript:") && 
+        !url.includes("/contact") && 
+        !url.includes("/about") &&
+        !url.includes("/privacy") &&
+        !url.includes("/terms") &&
+        !url.endsWith(".dtd") &&
+        !url.includes("/DTD/") &&
+        !url.includes("w3.org/TR/") &&
+        !url.includes("schema.org") &&
+        !url.includes("unsubscribe") &&
+        !url.includes("manage-preferences") &&
+        !url.includes("view-in-browser") &&
+        !url.includes("view-online") &&
+        !url.includes("browser-view") &&
+        !url.includes("preferences") && 
+        !url.includes("register") &&
+        !url.includes("signup") &&
+        !url.includes("sign-up") &&
+        !url.includes("giveaway") &&
+        !url.includes("offer") &&
+        !url.includes("register") &&
+        !url.includes("event") &&
+        !url.includes("free-") &&
+        !url.includes("free_") &&
+        !url.includes("download") &&
+        !url.includes("webinar") &&
+        !url.includes("training") &&
+        !url.includes("workshop") &&
+        !url.includes("coupon") &&
+        !url.includes("discount") &&
+        !url.includes("promo") &&
+        !url.includes("deal") &&
+        !url.includes("sale") &&
+        !url.includes("trial") &&
+        !url.includes("demo") &&
+        !url.includes("rsvp") &&
+        !url.includes("/faq") &&
+        !url.includes("/help") &&
+        !url.includes("/careers") &&
+        !url.includes("/shop") &&
+        !url.includes("/advertise") &&
+        !url.includes("/support")) {
         
-          while ((match = linkRegex.exec(htmlContent)) !== null) {
-            const url = match[1].trim();
-            const title = match[2].trim();
-            
-            // Filter out unwanted links
-            if (url && 
-              !url.startsWith("#") && 
-              !url.startsWith("mailto:") && 
-              !url.startsWith("javascript:") && 
-              !url.includes("/contact") && 
-              !url.includes("/about") &&
-              !url.includes("/privacy") &&
-              !url.includes("/terms") &&
-              !url.endsWith(".dtd") &&
-              !url.includes("/DTD/") &&
-              !url.includes("w3.org/TR/") &&
-              !url.includes("schema.org") &&
-              !url.includes("unsubscribe") &&
-              !url.includes("manage-preferences")) {
-              links.push({
-                title: title || null,
-                url: url
-              });
-            }
+        // Additional checks for link quality
+        if (title && title.length > 2) {
+          // Skip links with too many query parameters (likely tracking links)
+          const queryParamsCount = (url.match(/&/g) || []).length;
+          if (queryParamsCount > 3) {
+            continue;
           }
-        
-          return JSON.stringify({ links });
+          
+          links.push({
+            title: title || null,
+            url: url
+          });
         }
-        
+      }
+    }
+
+    return JSON.stringify({ links });
+  }
+
         // Use the function (no need for await since it's synchronous now)
         const processedContent = extractLinksFromHTML(htmlBody);
 
@@ -428,6 +554,113 @@ serve(async (req: Request) => {
         });
 
         const foundLinks = completionLinks.choices[0].message.content;
+
+        // Parse the links JSON
+        let parsedLinks;
+try {
+  // Parse the JSON string into an object
+  parsedLinks = JSON.parse(foundLinks);
+  console.log('Successfully parsed links:', parsedLinks);
+
+  // Initialize suggestedItems array
+  const suggestedItems = [];
+  
+  // Add news_articles if available
+  if (parsedLinks && parsedLinks.news_articles && parsedLinks.news_articles.length > 0) {
+    console.log(`Found ${parsedLinks.news_articles.length} news articles to add to suggested table`);
+    
+    const newsItems = parsedLinks.news_articles.map((article: { title: string; url: string }) => ({
+      title: article.title,
+      url: article.url,
+      type: 'news_article',
+      created_at: new Date().toISOString()
+    }));
+    
+    suggestedItems.push(...newsItems);
+  }
+  
+  // Add videos if available
+  if (parsedLinks && parsedLinks.videos && parsedLinks.videos.length > 0) {
+    console.log(`Found ${parsedLinks.videos.length} videos to add to suggested table`);
+    
+    const videoItems = parsedLinks.videos.map((video: { title: string; url: string }) => ({
+      title: video.title,
+      url: video.url,
+      type: 'video',
+      created_at: new Date().toISOString()
+    }));
+    
+    suggestedItems.push(...videoItems);
+  }
+  
+  // Add author content if available
+  if (parsedLinks && parsedLinks.author_content && parsedLinks.author_content.length > 0) {
+    console.log(`Found ${parsedLinks.author_content.length} author content items to add to suggested table`);
+    
+    const authorItems = parsedLinks.author_content.map((content: { title: string; url: string }) => ({
+      title: content.title,
+      url: content.url,
+      type: 'author_content',
+      created_at: new Date().toISOString()
+    }));
+    
+    suggestedItems.push(...authorItems);
+  }
+  
+  // Add other links if available
+  if (parsedLinks && parsedLinks.other && parsedLinks.other.length > 0) {
+    console.log(`Found ${parsedLinks.other.length} other links to add to suggested table`);
+    
+    const otherItems = parsedLinks.other.map((item: { title: string; url: string }) => ({
+      title: item.title,
+      url: item.url,
+      type: 'other',
+      created_at: new Date().toISOString()
+    }));
+    
+    suggestedItems.push(...otherItems);
+  }
+    
+    // Insert into the suggested table
+    if (suggestedItems.length > 0) {
+      console.log(`Preparing to insert ${suggestedItems.length} total items into suggested table`);
+      
+      // Option 1: First check if URLs already exist, then only insert new ones
+      const urls = suggestedItems.map(item => item.url);
+      const { data: existingUrls, error: checkError } = await supabase
+        .from('suggested')
+        .select('url')
+        .in('url', urls);
+      
+      if (checkError) {
+        console.error('Error checking existing URLs:', checkError);
+      } else {
+        // Filter out items that already exist
+        const existingUrlSet = new Set(existingUrls?.map(item => item.url) || []);
+        const newItems = suggestedItems.filter(item => !existingUrlSet.has(item.url));
+        
+        if (newItems.length > 0) {
+          console.log(`Found ${newItems.length} new items to insert`);
+          const { data: insertedData, error: insertError } = await supabase
+            .from('suggested')
+            .insert(newItems)
+            .select();
+          
+          if (insertError) {
+            console.error('Error inserting into suggested table:', insertError);
+          } else {
+            console.log(`Successfully added ${insertedData?.length || 0} items to suggested table`);
+          }
+        } else {
+          console.log('All URLs already exist in the table, nothing to insert');
+        }
+      }
+    } else {
+      console.log('No items found to add to suggested table');
+    }
+} catch (error) {
+  console.error('Error parsing links JSON:', error);
+}
 
           // Insert into database
           const { error: insertError } = await supabase
