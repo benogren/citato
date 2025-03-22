@@ -26,13 +26,13 @@ export default function Transformation() {
                   <svg className="flex-shrink-0 h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="ml-3 text-gray-600">A unified feed that's actually enjoyable to browse</span>
+                  <span className="ml-3 text-gray-600">A unified feed that&#39;s actually enjoyable to browse</span>
                 </li>
                 <li className="flex">
                   <svg className="flex-shrink-0 h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="ml-3 text-gray-600">Key takeaways that help you decide what's worth your full attention</span>
+                  <span className="ml-3 text-gray-600">Key takeaways that help you decide what&#39;s worth your full attention</span>
                 </li>
                 <li className="flex">
                   <svg className="flex-shrink-0 h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -43,7 +43,7 @@ export default function Transformation() {
               </ul>
             </div>
             <p className="mt-6 text-lg text-gray-600">
-              Best of all? You'll finally feel in control of your information diet, confident that you're not missing anything important while saving hours each week.
+              Best of all? You&#39;ll finally feel in control of your information diet, confident that you&#39;re not missing anything important while saving hours each week.
             </p>
           </div>
           <div className="mt-10 lg:mt-0 relative mx-auto">

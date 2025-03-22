@@ -1,5 +1,4 @@
 // File: components/Testimonials.js
-import Image from 'next/image';
 import Link from 'next/link';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faQuoteLeft } from '@fortawesome/free-solid-svg-icons';
@@ -40,7 +39,7 @@ export default function Testimonials() {
             Loved by information professionals
           </h2>
           <p className="mt-4 text-lg text-gray-600">
-            Join thousands who've transformed their newsletter experience
+            Join thousands who&#39;ve transformed their newsletter experience
           </p>
         </div>
         <div className="mt-12">

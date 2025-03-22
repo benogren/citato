@@ -22,7 +22,7 @@ export default function Pricing() {
     }
   }, [isSubmitting]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     
@@ -119,7 +119,10 @@ export default function Pricing() {
                 <div className="rounded-md shadow">
                   <button
                     type="button"
-                    onClick={() => document.getElementById('pricing-email').focus()}
+                    onClick={() => {
+                      const emailInput = document.getElementById('pricing-email');
+                      if (emailInput) emailInput.focus();
+                    }}
                     className="w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700"
                   >
                     Join Waitlist
@@ -180,7 +183,10 @@ export default function Pricing() {
                 <div className="rounded-md shadow">
                   <button
                     type="button"
-                    onClick={() => document.getElementById('pricing-email').focus()}
+                    onClick={() => {
+                      const emailInput = document.getElementById('pricing-email');
+                      if (emailInput) emailInput.focus();
+                    }}
                     className="w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700"
                   >
                     Best Value - Join Waitlist
@@ -226,7 +232,7 @@ export default function Pricing() {
                   <p className="mt-2 text-sm text-red-600">{error}</p>
                 )}
                 <p className="mt-3 text-sm text-gray-500 text-center">
-                  Be the first to know when citato.ai launches. We'll notify you when spots are available.
+                  Be the first to know when citato.ai launches. We&#39;ll notify you when spots are available.
                 </p>
               </form>
             ) : (
@@ -235,10 +241,10 @@ export default function Pricing() {
                   <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  <h3 className="ml-2 text-lg font-medium text-green-800">You're on the list!</h3>
+                  <h3 className="ml-2 text-lg font-medium text-green-800">You&#39;re on the list!</h3>
                 </div>
                 <p className="mt-2 text-center text-green-700">
-                  Thanks for joining our waitlist. We'll notify you when citato.ai launches.
+                  Thanks for joining our waitlist. We&#39;ll notify you when citato.ai launches.
                 </p>
               </div>
             )}

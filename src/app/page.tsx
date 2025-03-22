@@ -1,10 +1,8 @@
 import Head from 'next/head';
-import Link from 'next/link';
-import Image from 'next/image';
 import Hero from '@/components/marketing/hero';
 import CTA from '@/components/marketing/CTA';
-import Pricing from '@/components/marketing/pricing';
-import Testimonials from '@/components/marketing/testimonials';
+// import Pricing from '@/components/marketing/pricing';
+// import Testimonials from '@/components/marketing/testimonials';
 import Problem from '@/components/marketing/problem';
 import Transformation from '@/components/marketing/transform';
 import Features from '@/components/marketing/features';
@@ -14,6 +12,7 @@ import Navbar from '@/components/marketing/navbar';
 export default async function Home() {
 
   return (
+    <>
     <div className="min-h-screen bg-white">
       <Head>
         <title>citato.ai | AI-powered Reading Companion</title>
@@ -28,11 +27,12 @@ export default async function Home() {
         <Problem />
         <Transformation />
         <Features />
-        <Testimonials />
-        <Pricing />
+        {/* <Testimonials /> */}
+        {/* <Pricing /> */}
         <FAQ />
         <CTA />
       </main>
     </div>
+    </>
     );
 }

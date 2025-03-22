@@ -9,7 +9,7 @@ export default function Problem() {
             Stop Drowning in Content Overload
           </h2>
           <p className="mt-4 text-lg text-gray-600">
-            Every day, your inbox fills with interesting content you've subscribed to. Articles, updates, and insights from sources you care about pile up faster than you can process them. You're left with two bad choices:
+            Every day, your inbox fills with interesting content you&#39;ve subscribed to. Articles, updates, and insights from sources you care about pile up faster than you can process them. You&#39;re left with two bad choices:
           </p>
           <div className="mt-8">
             <ul className="space-y-4 mx-auto max-w-md">
@@ -28,7 +28,7 @@ export default function Problem() {
             </ul>
           </div>
           <p className="mt-6 text-lg text-gray-600">
-            The worst part? You've subscribed to this content because it matters to your work and interests. But without a better way to manage it all, your information diet has become a source of stress rather than value.
+            The worst part? You&#39;ve subscribed to this content because it matters to your work and interests. But without a better way to manage it all, your information diet has become a source of stress rather than value.
           </p>
         </div>
       </div>

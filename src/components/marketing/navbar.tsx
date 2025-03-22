@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -18,13 +17,13 @@ export default function Navbar() {
             <Link href="#features" className="text-gray-600 hover:text-purple-600 transition-colors">
               Features
             </Link>
-            <Link href="#pricing" className="text-gray-600 hover:text-purple-600 transition-colors">
+            {/* <Link href="#pricing" className="text-gray-600 hover:text-purple-600 transition-colors">
               Pricing
-            </Link>
+            </Link> */}
             <Link href="#faq" className="text-gray-600 hover:text-purple-600 transition-colors">
               FAQ
             </Link>
-            <Link href="/login" className="text-gray-600 hover:text-purple-600 transition-colors">
+            <Link href="/sign-in" className="text-gray-600 hover:text-purple-600 transition-colors">
               Log in
             </Link>
             <Link href="#cta" className="bg-violet-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-purple-700 transition-colors">
