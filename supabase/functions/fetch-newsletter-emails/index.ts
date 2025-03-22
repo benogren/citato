@@ -9,6 +9,79 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+async function extractImageFromHTML(htmlContent: string): Promise<string | null> {
+  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let match;
+
+  while ((match = imgRegex.exec(htmlContent)) !== null) {
+    const imageUrl = match[1];
+
+    // Filter out tracking images based on URL patterns
+    const trackingKeywords = [
+      'track', 'pixel', 'analytics', '1x1', 'spy', 'beacon', 'openrate',
+      'emailtracking', 'campaign', 'stat', 'gif'
+    ];
+
+    if (trackingKeywords.some(keyword => imageUrl.includes(keyword))) {
+      console.log(`Skipping tracking pixel: ${imageUrl}`);
+      continue;
+    }
+
+    // Check if the image has a width/height of 1x1 (often tracking pixels)
+    const sizeResponse = await fetch(imageUrl, { method: 'HEAD' });
+    const width = sizeResponse.headers.get('width');
+    const height = sizeResponse.headers.get('height');
+
+    if ((width === '1' && height === '1') || imageUrl.includes('1x1')) {
+      console.log(`Skipping tiny image: ${imageUrl}`);
+      continue;
+    }
+
+    return imageUrl;
+  }
+
+  return null; // No valid image found
+}
+
+async function generateImageWithOpenAI(summary: string): Promise<string | null> {
+  try {
+    const openai = new OpenAI({
+      apiKey: Deno.env.get('OPENAI_API_KEY'),
+    });
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: `Create an abstract representation of: ${summary}`,
+      n: 1,
+      size: "1024x1024",
+    });
+
+    return response.data[0]?.url || null;
+  } catch (error) {
+    console.error("Error generating image:", error);
+    return null;
+  }
+}
+
+async function storeImageInSupabase(imageUrl: string, userId: string, messageId: string): Promise<string | null> {
+  try {
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const response = await fetch(imageUrl);
+    const imageBlob = await response.blob();
+    const filePath = `emails/${userId}/${messageId}.jpg`;
+
+    const { error, data } = await supabase.storage.from('email_images').upload(filePath, imageBlob, {
+      contentType: 'image/jpeg',
+    });
+
+    if (error) throw error;
+    return data?.publicUrl || null;
+  } catch (error) {
+    console.error("Error storing image in Supabase:", error);
+    return null;
+  }
+}
+
 // Gmail API wrapper with token refresh
 async function createGmailClient(userId: string, accessToken: string, refreshToken: string, supabase: any) {
   const baseUrl = 'https://gmail.googleapis.com/gmail/v1/users/me'
@@ -661,6 +734,16 @@ try {
 } catch (error) {
   console.error('Error parsing links JSON:', error);
 }
+          // Try extracting an image
+          let imageUrl = await extractImageFromHTML(htmlBody);
+
+          // If no image found, generate one with OpenAI
+          if (!imageUrl) {
+            imageUrl = await generateImageWithOpenAI(contentSummary);
+          }
+
+          // Store the image in Supabase
+          let storedImageUrl = imageUrl ? await storeImageInSupabase(imageUrl, userId, message.id) : null;
 
           // Insert into database
           const { error: insertError } = await supabase
@@ -679,6 +762,7 @@ try {
               ai_fullsummary: fullSummary,
               ai_links: foundLinks,
               embeddings: savedEmbedding,
+              image_url: storedImageUrl,
             }, {
               onConflict: 'user_id,message_id'
             })

@@ -1,3 +1,4 @@
+// home/suggested.tsx
 "use client";
 
 import { useEffect, useState } from 'react';

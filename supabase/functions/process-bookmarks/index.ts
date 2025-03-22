@@ -63,7 +63,7 @@ serve(async (req) => {
             messages: [
                 {
                 role: "system",
-                content: "You will be provided a link url. Generate a concise summary in 500 characters or less, maintaining the voice and tone of the original text. Ensure brevity while preserving key themes and insights.",
+                content: "You will be provided HTML content. Your task is to generate a concise summary in 500 characters or less, maintaining the voice and tone of the original text. Ensure brevity while preserving key themes and insights.",
                 },
                 {
                 role: "user",
@@ -82,7 +82,7 @@ serve(async (req) => {
             messages: [
               { 
                 role: "system", 
-                content: `You will be provided newsletter content. Identify and list key takeaways as follows:
+                content: `You will be provided HTML content. Your task is to identify and list key takeaways as follows:
           
                 ### Key Takeaways
                 - Summarize major insights, interesting facts, or noteworthy points.
