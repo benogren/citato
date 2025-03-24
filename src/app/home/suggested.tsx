@@ -10,6 +10,7 @@ interface SuggestedItem {
   author: string | null;
   ai_summary: string | null;
   similarity?: number;
+  image_url?: string;
 }
 
 export default function SuggestedContent() {
@@ -36,6 +37,7 @@ export default function SuggestedContent() {
         console.log("Received data:", data);
         
         if (Array.isArray(data)) {
+          console.log("Received", data);
           setSuggestions(data);
         } else {
           console.error("Response is not an array:", data);
@@ -85,6 +87,20 @@ export default function SuggestedContent() {
             key={item.id} 
             className="border rounded-lg p-4 hover:shadow-md transition-shadow"
           >
+            {item.image_url && (
+              <a 
+                href={item.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="block mb-2"
+              >
+                <img 
+                  src={item.image_url} 
+                  alt={item.title || 'Untitled'} 
+                  className="w-full h-32 object-cover rounded"
+                />
+              </a>
+            )}
             <h3 className="font-semibold mb-2 line-clamp-2">
               <a 
                 href={item.url} 

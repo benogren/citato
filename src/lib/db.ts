@@ -10,6 +10,7 @@ interface ContentItem {
   author: string | null;
   ai_summary: string | null;
   similarity?: number;
+  image_url?: string;
 }
 
 // Type for embeddings input - allows for different formats
@@ -207,7 +208,7 @@ async function getGeneralRecommendations(
   console.log('Using general recommendations fallback');
   const { data: generalSuggestions } = await supabase
     .from('suggested')
-    .select('id, url, title, author, ai_summary')
+    .select('id, url, title, author, ai_summary, image_url')
     .eq('status', 'processed')
     .not('url', 'in', excludeUrls)
     .order('created_at', { ascending: false })

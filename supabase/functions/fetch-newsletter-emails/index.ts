@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 import OpenAI from "https://esm.sh/openai@4.20.1"
-import { cleanEmailContent } from "./cleanemails.ts"
+import { parse } from "https://esm.sh/node-html-parser";
 
 
 const corsHeaders = {
@@ -9,21 +9,64 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+type EmailDataItem = {
+  id: string;
+  htmlContent: string;
+};
+
+
+export async function cleanEmailContent(emailData: EmailDataItem[]) {
+  return emailData.map((item) => {
+      const root = parse(item.htmlContent);
+      
+      const paragraphs = root.querySelectorAll("h1, h2, h3, p, li")
+          .map(el => el.text.trim())
+          .filter(text => text.length > 0);
+          
+      const links = root.querySelectorAll("a")
+          .map(el => el.getAttribute("href"))
+          .filter(Boolean);
+
+      return {
+          id: item.id,
+          sanitizedHTML: root.toString(),
+          extractedContent: {
+              paragraphs,
+              links,
+          },
+      };
+  });
+}
+
 async function extractImageFromHTML(htmlContent: string): Promise<string | null> {
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
   let match;
 
   while ((match = imgRegex.exec(htmlContent)) !== null) {
+    // Extract the full img tag and the src URL
+    const fullImgTag = match[0];
     const imageUrl = match[1];
+
+    // Check for "logo" in the image URL
+    if (/logo/i.test(imageUrl)) {
+      console.log(`Skipping logo image by URL: ${imageUrl}`);
+      continue;
+    }
+
+    // Check for "logo" in other attributes (id, class, alt)
+    if (/(?:id|class|alt)=["'][^"']*logo[^"']*["']/i.test(fullImgTag)) {
+      console.log(`Skipping logo image by attributes: ${imageUrl}`);
+      continue;
+    }
 
     // Filter out tracking images based on URL patterns
     const trackingKeywords = [
       'track', 'pixel', 'analytics', '1x1', 'spy', 'beacon', 'openrate',
-      'emailtracking', 'campaign', 'stat', 'gif'
+      'emailtracking', 'campaign', 'stat', 'gif', 'logo', 'logos'
     ];
 
-    if (trackingKeywords.some(keyword => imageUrl.includes(keyword))) {
-      console.log(`Skipping tracking pixel: ${imageUrl}`);
+    if (trackingKeywords.some(keyword => imageUrl.toLowerCase().includes(keyword))) {
+      console.log(`Skipping tracking pixel or logo: ${imageUrl}`);
       continue;
     }
 

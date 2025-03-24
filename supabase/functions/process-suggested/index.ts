@@ -13,9 +13,292 @@ const supabaseClient = createClient(
 const openai = new OpenAI({
     apiKey: Deno.env.get('OPENAI_API_KEY'),
 })
+
 // Scraping the URL with Firecrawl
 const crawlKey = Deno.env.get('FC_YOUR_API_KEY') as string
 const app = new FirecrawlApp({apiKey: crawlKey});
+
+// Function to extract cover image from HTML content
+async function extractCoverImageFromHTML(htmlContent: string): Promise<string | null> {
+  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let match;
+  
+  // Store candidate images with their scores
+  const candidateImages: Array<{ url: string, score: number, width?: number, height?: number }> = [];
+
+  // First pass: find all images and evaluate them
+  while ((match = imgRegex.exec(htmlContent)) !== null) {
+    // Extract the full img tag and the src URL
+    const fullImgTag = match[0];
+    const imageUrl = match[1];
+    
+    // Skip base64 encoded images (they're usually small icons)
+    if (imageUrl.startsWith('data:image')) {
+      continue;
+    }
+
+    // Check for "logo" in the image URL
+    if (/logo/i.test(imageUrl)) {
+      console.log(`Skipping logo image by URL: ${imageUrl}`);
+      continue;
+    }
+
+    // Check for unwanted patterns in other attributes (id, class, alt)
+    const unwantedPatterns = ['logo', 'avatar', 'profile', 'icon', 'thumbnail', 'thumb'];
+    if (unwantedPatterns.some(pattern => new RegExp(`(?:id|class|alt)=["'][^"']*${pattern}[^"']*["']`, 'i').test(fullImgTag))) {
+      console.log(`Skipping unwanted image by attributes: ${imageUrl}`);
+      continue;
+    }
+
+    // Filter out tracking images based on URL patterns
+    const trackingKeywords = [
+      'track', 'pixel', 'analytics', '1x1', 'spy', 'beacon', 'openrate',
+      'emailtracking', 'campaign', 'stat', 'gif', 'logo', 'logos', 'icon', 'avatar',
+      'profile', 'thumbnail', 'thumb', 'favicon'
+    ];
+
+    if (trackingKeywords.some(keyword => imageUrl.toLowerCase().includes(keyword))) {
+      console.log(`Skipping tracking pixel or logo: ${imageUrl}`);
+      continue;
+    }
+
+    // Extract width and height from the image tag if available
+    const widthMatch = fullImgTag.match(/width=["']?(\d+)["']?/i);
+    const heightMatch = fullImgTag.match(/height=["']?(\d+)["']?/i);
+    
+    // Start with a base score
+    let score = 0;
+    let width: number | undefined = widthMatch ? parseInt(widthMatch[1], 10) : undefined;
+    let height: number | undefined = heightMatch ? parseInt(heightMatch[1], 10) : undefined;
+    
+    // Check if the image has dimensions in the tag
+    if (width && height) {
+      // Filter out small images (likely icons, avatars)
+      if (width < 300 || height < 200) {
+        console.log(`Skipping small image ${width}x${height}: ${imageUrl}`);
+        continue;
+      }
+      
+      // Calculate aspect ratio
+      const aspectRatio = width / height;
+      
+      // Prefer landscape images (common for article headers)
+      // Ideal aspect ratios are around 16:9, 4:3, 3:2
+      if (aspectRatio >= 1.3 && aspectRatio <= 2.0) {
+        score += 30;
+      } else if (aspectRatio >= 1.0 && aspectRatio < 1.3) {
+        score += 10; // Still okay but not ideal
+      } else if (aspectRatio > 2.0) {
+        score -= 10; // Too wide
+      } else {
+        score -= 20; // Portrait images are less likely to be article images
+      }
+      
+      // Prefer larger images
+      score += Math.min(30, Math.floor(width / 100));
+    }
+
+    // Check if the image is likely to be a cover image based on attributes
+    const coverImageKeywords = ['hero', 'feature', 'cover', 'main', 'banner', 'header', 'lead', 'featured', 'article-image'];
+    if (coverImageKeywords.some(keyword => fullImgTag.toLowerCase().includes(keyword))) {
+      console.log(`Found likely cover image keyword: ${imageUrl}`);
+      score += 50;
+    }
+    
+    // Penalize images at the bottom of the page (likely ads or related content)
+    const position = htmlContent.indexOf(fullImgTag);
+    const positionRatio = position / htmlContent.length;
+    
+    if (positionRatio < 0.3) {
+      score += 20; // Images near the top are likely to be article headers
+    } else if (positionRatio > 0.8) {
+      score -= 20; // Images near the bottom are likely to be related content or ads
+    }
+    
+    // Add the candidate to our list
+    candidateImages.push({ url: imageUrl, score, width, height });
+  }
+  
+  console.log(`Found ${candidateImages.length} candidate images`);
+  
+  // Sort candidates by score descending
+  candidateImages.sort((a, b) => b.score - a.score);
+  
+  // Take top 3 candidates and fetch actual dimensions if needed
+  const topCandidates = candidateImages.slice(0, 3);
+  
+  for (const candidate of topCandidates) {
+    try {
+      // Skip fetching if we already have dimensions
+      if (candidate.width && candidate.height) {
+        console.log(`Using image with known dimensions ${candidate.width}x${candidate.height}: ${candidate.url}`);
+        return candidate.url;
+      }
+      
+      // Need to fetch the image to check its actual size
+      console.log(`Fetching image to check dimensions: ${candidate.url}`);
+      const img = new Image();
+      
+      // Create a promise to wait for image load
+      const imageLoad = new Promise<{width: number, height: number}>((resolve, reject) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => reject(new Error('Failed to load image'));
+        
+        // Set a timeout to avoid hanging
+        setTimeout(() => reject(new Error('Image load timeout')), 5000);
+      });
+      
+      // Set the source to start loading
+      img.src = candidate.url;
+      
+      // Wait for the image to load
+      const { width, height } = await imageLoad;
+      
+      // Check if the image is large enough
+      if (width < 300 || height < 200) {
+        console.log(`Image too small (${width}x${height}): ${candidate.url}`);
+        continue;
+      }
+      
+      // Check aspect ratio
+      const aspectRatio = width / height;
+      if (aspectRatio < 0.7 || aspectRatio > 2.5) {
+        console.log(`Image aspect ratio unsuitable (${aspectRatio}): ${candidate.url}`);
+        continue;
+      }
+      
+      console.log(`Found suitable image (${width}x${height}): ${candidate.url}`);
+      return candidate.url;
+      
+    } catch (error) {
+      console.error(`Error checking image ${candidate.url}:`, error);
+      continue;
+    }
+  }
+
+  // Look for open graph or Twitter card image meta tags as fallback
+  console.log('No suitable images found, checking meta tags...');
+  const metaTagRegex = /<meta[^>]+property=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["'][^>]*>/gi;
+  while ((match = metaTagRegex.exec(htmlContent)) !== null) {
+    const metaImageUrl = match[1];
+    console.log(`Found meta tag image: ${metaImageUrl}`);
+    
+    try {
+      // Fetch meta image to check dimensions
+      const img = new Image();
+      
+      // Create a promise to wait for image load
+      const imageLoad = new Promise<{width: number, height: number}>((resolve, reject) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => reject(new Error('Failed to load image'));
+        
+        // Set a timeout to avoid hanging
+        setTimeout(() => reject(new Error('Image load timeout')), 5000);
+      });
+      
+      // Set the source to start loading
+      img.src = metaImageUrl;
+      
+      // Wait for the image to load
+      const { width, height } = await imageLoad;
+      
+      // Check if the image is large enough
+      if (width < 300 || height < 200) {
+        console.log(`Meta image too small (${width}x${height}): ${metaImageUrl}`);
+        continue;
+      }
+      
+      console.log(`Using meta image (${width}x${height}): ${metaImageUrl}`);
+      return metaImageUrl;
+      
+    } catch (error) {
+      console.error(`Error checking meta image:`, error);
+      // Still return the meta image URL even if we couldn't check dimensions
+      // Meta tags are specifically for sharing, so they're likely good quality
+      return metaImageUrl;
+    }
+  }
+
+  return null; // No valid image found
+}
+
+// Function to generate a cover image with OpenAI if none found
+async function generateImageWithOpenAI(summary: string): Promise<string | null> {
+  try {
+    const openai = new OpenAI({
+      apiKey: Deno.env.get('OPENAI_API_KEY'),
+    });
+
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: `Create a professional-looking cover image representing: ${summary}`,
+      n: 1,
+      size: "1024x1024",
+    });
+
+    return response.data[0]?.url || null;
+  } catch (error) {
+    console.error("Error generating image:", error);
+    return null;
+  }
+}
+
+// Function to store image in Supabase Storage
+async function storeImageInSupabase(imageUrl: string, articleId: string): Promise<string | null> {
+  try {
+    console.log(`Fetching image for storage: ${imageUrl}`);
+    const response = await fetch(imageUrl);
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch image at URL: ${imageUrl}`);
+      return null;
+    }
+    
+    // Get content type from response
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    
+    // Determine file extension based on content type
+    let fileExtension = 'jpg'; // Default
+    if (contentType.includes('png')) fileExtension = 'png';
+    if (contentType.includes('gif')) fileExtension = 'gif';
+    if (contentType.includes('webp')) fileExtension = 'webp';
+    
+    const imageBlob = await response.blob();
+    
+    // Check image size - don't store if it's too small
+    if (imageBlob.size < 10000) { // 10KB minimum
+      console.log(`Image too small (${imageBlob.size} bytes), skipping storage: ${imageUrl}`);
+      return null;
+    }
+    
+    console.log(`Uploading image (${imageBlob.size} bytes, ${contentType})`);
+    
+    const filePath = `articles/${articleId}.${fileExtension}`;
+
+    const { data, error } = await supabaseClient.storage
+      .from('article-images')
+      .upload(filePath, imageBlob, {
+        contentType: contentType,
+        upsert: true
+      });
+
+    if (error) {
+      console.error("Error storing image in Supabase:", error);
+      return null;
+    }
+
+    // Get the public URL
+    const { data: publicUrlData } = supabaseClient.storage
+      .from('article-images')
+      .getPublicUrl(filePath);
+
+    console.log(`Successfully uploaded image to: ${publicUrlData.publicUrl}`);
+    return publicUrlData.publicUrl;
+  } catch (error) {
+    console.error("Error storing image in Supabase:", error);
+    return null;
+  }
+}
 
 // Function to split text into chunks of approximately maxTokens
 function chunkText(text: string, maxTokens = 7500): string[] {
@@ -116,6 +399,8 @@ serve(async (req) => {
       .select('*')
       .eq('status', 'processing')
       .eq('type', 'news_article')
+      .order('created_at', { ascending: false })
+      .limit(10);
 
     if (fetchError) {
       throw fetchError
@@ -207,6 +492,29 @@ serve(async (req) => {
           savedEmbedding = null;
         }
 
+        // Extract or generate cover image
+        console.log('Finding cover image for the article...');
+        let imageUrl = await extractCoverImageFromHTML(html);
+        
+        // Check for image in Open Graph meta data if not found in HTML
+        if (!imageUrl && scrapeResponse.metadata?.image) {
+          console.log('Using image from Open Graph metadata');
+          imageUrl = scrapeResponse.metadata.image;
+        }
+        
+        // If no image found, generate one with OpenAI
+        if (!imageUrl) {
+          console.log('No cover image found, generating with OpenAI...');
+          imageUrl = await generateImageWithOpenAI(contentSummary);
+        }
+        
+        // Store the image in Supabase
+        let coverImageUrl = null;
+        if (imageUrl) {
+          console.log('Storing image in Supabase...');
+          coverImageUrl = await storeImageInSupabase(imageUrl, suggested.id);
+        }
+
         // Update suggested with summary and status
         const { error: updateError } = await supabaseClient
           .from('suggested')
@@ -219,12 +527,18 @@ serve(async (req) => {
             ai_summary: contentSummary,
             ai_fullsummary: fullSummary,
             embeddings: savedEmbedding,
+            image_url: coverImageUrl, // Store the image URL
             status: savedEmbedding ? 'processed' : 'partial_process' // New status for when embeddings fail
           })
           .eq('id', suggested.id)
 
         if (updateError) {
           throw updateError
+        }
+        
+        console.log(`Successfully processed article ${suggested.id}`);
+        if (coverImageUrl) {
+          console.log(`Cover image stored at: ${coverImageUrl}`);
         }
       } catch (error) {
         console.error(`Error processing suggested ${suggested.id}:`, error)

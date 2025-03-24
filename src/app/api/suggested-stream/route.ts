@@ -53,7 +53,7 @@ export async function GET() {
       console.log('No embeddings after filtering, using general recommendations');
       const { data: generalSuggestions } = await supabase
         .from('suggested')
-        .select('id, url, title, author, ai_summary')
+        .select('id, url, title, author, ai_summary, image_url')
         .eq('status', 'processed')
         .not('url', 'in', excludeUrls)
         .order('created_at', { ascending: false })
