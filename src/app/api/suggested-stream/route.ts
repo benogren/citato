@@ -10,12 +10,18 @@ interface BookmarkItem {
 
 export const dynamic = 'force-dynamic'; // Disable caching
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const token = authHeader.substring(7);
     // Create the client inside the request context
     const supabase = await createClient();
     
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
       return NextResponse.json(

@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 interface SuggestedItem {
   id: string;
@@ -27,7 +28,22 @@ export default function SuggestedContent() {
         
         // Use the direct API endpoint
         console.log("Fetching from direct API");
-        const response = await fetch('/api/suggested-stream');
+        
+        const supabase = await createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('** Not authenticated');
+
+        // const response = await fetch('/api/suggested-stream'), {
+        //   headers: {
+        //     'Authorization': `Bearer ${session.access_token}`
+        //   }
+        // });
+
+        const response = await fetch(`/api/suggested-stream`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
         
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
