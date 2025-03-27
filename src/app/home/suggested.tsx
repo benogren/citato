@@ -9,6 +9,7 @@ interface SuggestedItem {
   title: string;
   author: string | null;
   ai_summary: string | null;
+  ai_fullsummary: string | null;
   similarity?: number;
   image_url?: string;
 }
@@ -117,6 +118,9 @@ export default function SuggestedContent() {
             {item.ai_summary && (
               <p className="text-sm text-gray-700 line-clamp-3">{item.ai_summary}</p>
             )}
+            {/* {item.ai_fullsummary && (
+              <p className="text-sm text-gray-700 line-clamp-3">{item.ai_fullsummary}</p>
+            )} */}
             {item.similarity && (
               <div className="mt-2 text-xs text-gray-500">
                 {Math.round(item.similarity * 100)}% match

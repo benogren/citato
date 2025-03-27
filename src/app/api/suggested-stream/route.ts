@@ -10,7 +10,6 @@ interface BookmarkItem {
 
 export const dynamic = 'force-dynamic'; // Disable caching
 
-// Remove the unused 'request' parameter
 export async function GET() {
   try {
     // Create the client inside the request context
@@ -32,6 +31,47 @@ export async function GET() {
       .eq('user_id', user.id);
       
     const excludeUrls = bookmarkedUrls?.map(bookmark => bookmark.url).filter(Boolean) || [];
+
+    // Get newsletter subjects to avoid duplicating content
+    const { data: newsletterSubjects } = await supabase
+      .from('newsletter_emails')
+      .select('subject')
+      .eq('user_id', user.id);
+    
+    // Normalize newsletter subjects for comparison
+    const existingSubjects = newsletterSubjects
+      ?.map(newsletter => newsletter.subject?.toLowerCase().trim())
+      .filter(Boolean) || [];
+
+    const existingSubjectsSet = new Set(existingSubjects);
+
+    // Helper function to check if a title is too similar to existing subjects
+    const isTooSimilar = (title: string): boolean => {
+      if (!title) return false;
+      
+      const normalizedTitle = title.toLowerCase().trim();
+      
+      // Check for exact matches first (fast check)
+      if (existingSubjectsSet.has(normalizedTitle)) return true;
+      
+      // Check for high similarity
+      for (const subject of existingSubjects) {
+        // Simple similarity check based on common words
+        const titleWords = new Set(normalizedTitle.split(/\s+/).filter(w => w.length > 3));
+        const subjectWords: Set<string> = new Set(subject.split(/\s+/).filter((w: string) => w.length > 3));
+        
+        // Calculate Jaccard similarity
+        const titleWordsArray = Array.from(titleWords);
+        const commonWords = titleWordsArray.filter(word => subjectWords.has(word)).length;
+        const unionSize = titleWords.size + subjectWords.size - commonWords;
+        const similarity = unionSize > 0 ? commonWords / unionSize : 0;
+        
+        // Threshold can be adjusted based on desired strictness
+        if (similarity > 0.5) return true;
+      }
+      
+      return false;
+    };
 
     // Get user's content embeddings
     const { bookmarks, newsletters } = await getUserContentEmbeddings(user.id, 20);
@@ -57,16 +97,32 @@ export async function GET() {
         .eq('status', 'processed')
         .not('url', 'in', excludeUrls)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20); // Get extra for filtering
         
-      return NextResponse.json(generalSuggestions || []);
+      // Filter out suggestions with titles similar to existing newsletter subjects
+      const filteredSuggestions = generalSuggestions
+        ?.filter(item => !isTooSimilar(item.title))
+        .slice(0, 10); // Limit to requested amount
+        
+      return NextResponse.json(filteredSuggestions || []);
     }
 
-    // Get personalized suggestions
-    const suggestedContent = await getSuggestedContent(userEmbeddings, 10, excludeUrls);
-    console.log("Stream API returning:", suggestedContent.length, "items");
+    // Get personalized suggestions - get extra to allow for filtering
+    const suggestedContent = await getSuggestedContent(userEmbeddings, 20, excludeUrls);
     
-    return NextResponse.json(suggestedContent || []);
+    // Filter out suggestions with titles similar to existing newsletter subjects
+    interface SuggestedContentItem {
+      title: string;
+      [key: string]: unknown; // Allow other properties
+    }
+
+    const filteredSuggestions = suggestedContent
+      .filter((item: SuggestedContentItem) => !isTooSimilar(item.title))
+      .slice(0, 10); // Limit to requested amount
+    
+    console.log("Stream API returning:", filteredSuggestions.length, "items after filtering duplicates");
+    
+    return NextResponse.json(filteredSuggestions || []);
   } catch (error) {
     console.error('Error in suggested stream route:', error);
     return NextResponse.json(

@@ -61,7 +61,7 @@ async function fetchTodaysEmails(pageUserId: string): Promise<NewsletterEmail[]>
         .from('newsletter_emails')
         .select('*')
         .order('received_at', { ascending: false })
-        .limit(15);
+        .limit(20);
     
     if (error) throw error
         return data || []

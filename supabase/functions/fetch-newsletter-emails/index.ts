@@ -3,7 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 import OpenAI from "https://esm.sh/openai@4.20.1"
 import { parse } from "https://esm.sh/node-html-parser";
 
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -13,7 +12,6 @@ type EmailDataItem = {
   id: string;
   htmlContent: string;
 };
-
 
 export async function cleanEmailContent(emailData: EmailDataItem[]) {
   return emailData.map((item) => {
@@ -38,87 +36,328 @@ export async function cleanEmailContent(emailData: EmailDataItem[]) {
   });
 }
 
+// Improved image extraction with better filtering
 async function extractImageFromHTML(htmlContent: string): Promise<string | null> {
+  console.log("Starting enhanced image extraction from HTML content");
+  
+  // First, search for high-priority images with specific desired classes
+  const priorityClassRegex = /<img[^>]+class=["']([^"']*(header-image-container|hse-image-wrapper|wide-image)[^"']*)["'][^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let priorityMatch;
+  let priorityImageUrls = [];
+
+  while ((priorityMatch = priorityClassRegex.exec(htmlContent)) !== null) {
+    const imageUrl = priorityMatch[3];
+    console.log(`Found priority class image: ${imageUrl}`);
+    priorityImageUrls.push(imageUrl);
+  }
+
+  // If we found any priority class images, validate them first
+  for (const imageUrl of priorityImageUrls) {
+    const isValid = await validateImageUrl(imageUrl);
+    if (isValid) {
+      console.log(`Using priority class image: ${imageUrl}`);
+      return imageUrl;
+    }
+  }
+
+  // Standard image regex to match all img tags
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
   let match;
+  let candidateImages = [];
 
+  // Collect all image URLs that aren't immediately filtered
   while ((match = imgRegex.exec(htmlContent)) !== null) {
     // Extract the full img tag and the src URL
     const fullImgTag = match[0];
     const imageUrl = match[1];
 
-    // Check for "logo" in the image URL
-    if (/logo/i.test(imageUrl)) {
-      console.log(`Skipping logo image by URL: ${imageUrl}`);
+    // Skip immediately if matched against our blacklist
+    if (shouldSkipImage(fullImgTag, imageUrl)) {
       continue;
     }
 
-    // Check for "logo" in other attributes (id, class, alt)
-    if (/(?:id|class|alt)=["'][^"']*logo[^"']*["']/i.test(fullImgTag)) {
-      console.log(`Skipping logo image by attributes: ${imageUrl}`);
-      continue;
-    }
-
-    // Filter out tracking images based on URL patterns
-    const trackingKeywords = [
-      'track', 'pixel', 'analytics', '1x1', 'spy', 'beacon', 'openrate',
-      'emailtracking', 'campaign', 'stat', 'gif', 'logo', 'logos'
-    ];
-
-    if (trackingKeywords.some(keyword => imageUrl.toLowerCase().includes(keyword))) {
-      console.log(`Skipping tracking pixel or logo: ${imageUrl}`);
-      continue;
-    }
-
-    // Check if the image has a width/height of 1x1 (often tracking pixels)
-    const sizeResponse = await fetch(imageUrl, { method: 'HEAD' });
-    const width = sizeResponse.headers.get('width');
-    const height = sizeResponse.headers.get('height');
-
-    if ((width === '1' && height === '1') || imageUrl.includes('1x1')) {
-      console.log(`Skipping tiny image: ${imageUrl}`);
-      continue;
-    }
-
-    return imageUrl;
+    // Add to candidates for further processing
+    candidateImages.push(imageUrl);
   }
 
+  console.log(`Found ${candidateImages.length} candidate images after initial filtering`);
+
+  // If no candidates, return null
+  if (candidateImages.length === 0) {
+    console.log("No suitable image candidates found in HTML");
+    return null;
+  }
+
+  // Check each candidate more thoroughly
+  for (const imageUrl of candidateImages) {
+    const isValid = await validateImageUrl(imageUrl);
+    if (isValid) {
+      console.log(`Selected valid image: ${imageUrl}`);
+      return imageUrl;
+    }
+  }
+
+  console.log("No valid images passed all filtering criteria");
   return null; // No valid image found
 }
 
+// Helper function to determine if an image should be skipped based on URL and attributes
+function shouldSkipImage(fullImgTag: string, imageUrl: string): boolean {
+  // Specific blacklisted URLs to exclude
+  const blacklistedUrls = [
+    'https://d3k81ch9hvuctc.cloudfront.net/company/Jchkiv/images/aca728d2-5e99-413a-8303-e90d8393a2dd.png',
+    'https://stratechery.com/wp-content/themes/stratechery-theme/images/header_large.png',
+    'https://media.beehiiv.com/cdn-cgi/image/fit=scale-down,format=auto,onerror=redirect,quality=80/uploads/asset/file/f22fb886-85dc-4afe-85ea-7f7fdfc9d30c/Fill__4___1_.png',
+    'https://i7.cmail19.com/ei/t/6C/2D6/32D/231012/csimport/the-daily-upside-sunstrisk-white-36x36_6.png',
+    'https://d18e5vrcqydw4b.cloudfront.net/2025/03/Ghost-2.png',
+    // New blacklisted URLs
+    'https://media.beehiiv.com/cdn-cgi/image/fit=scale-down,format=auto,onerror=redirect,quality=80/uploads/asset/file/e62f06f0-55c5-486f-9fe2-39c5a9ade56e/Word_mark_transparent_background.png',
+    'https://embed.filekitcdn.com/e/9LPSo2qdpCMTdspcVpCxvx/9PyZ7aK281HbPVkDZrUGQq',
+    'Word_mark_transparent_background.png', // Partial match for the above
+    'transparent_background', // Common in logo filenames
+    'wordmark', // Common in logo filenames
+    'word_mark', // Common in logo filenames
+    'brand_', // Common in logo filenames
+    'branding_' // Common in logo filenames
+  ];
+
+  // Check for exact or partial matches in the blacklist
+  if (blacklistedUrls.some(url => imageUrl.includes(url))) {
+    console.log(`Skipping blacklisted URL: ${imageUrl}`);
+    return true;
+  }
+
+  // Patterns to exclude in URLs
+  const excludePatterns = [
+    // File types
+    /\.gif(\?|#|$)/i,
+    
+    // Keywords in URL
+    /logo/i,
+    /icon/i,
+    /avatar/i,
+    /profile/i,
+    /badge/i,
+    /app-?store/i,
+    /play-?store/i,
+    /social/i,
+    /twitter/i,
+    /facebook/i,
+    /instagram/i,
+    /linkedin/i,
+    /youtube/i,
+    /pinterest/i,
+    /footer/i,
+    /header/i,
+    
+    // Twitter/X profile avatars
+    /pbs\.twimg\.com\/profile_images/i,
+    
+    // Common tracking domains
+    /gravatar/i,
+    /analytics/i,
+    /tracking/i,
+    /pixel/i,
+    /beacon/i,
+    
+    // New patterns to exclude
+    /sponsor/i,
+    /advertisement/i,
+    /sponsored/i,
+    /promotion/i,
+    /promo-/i,
+    /ad-image/i,
+    /advert/i,
+    /marketing/i,
+  ];
+
+  if (excludePatterns.some(pattern => pattern.test(imageUrl))) {
+    console.log(`Skipping excluded pattern URL: ${imageUrl}`);
+    return true;
+  }
+
+  // Check for common sponsored content image domains
+  const sponsoredImageDomains = [
+    'tii.imgix.net/production/advertisements',
+    'tii.imgix.net/sponsored',
+    'imgix.net/production/advertisements',
+    'imgix.net/sponsored',
+    'ads.', 
+    'adserver.',
+    'advertising.',
+    'imgix.net/ad',
+    'promotions.',
+    'sponsored.'
+  ];
+  
+  if (sponsoredImageDomains.some(domain => imageUrl.includes(domain))) {
+    console.log(`Skipping sponsored content domain: ${imageUrl}`);
+    return true;
+  }
+
+  // Check attributes in the img tag
+  const attributePatterns = [
+    // Classes, IDs or alt text that suggest avatar, logo, icon, etc.
+    /(class|id|alt)=["'][^"']*?(?:avatar|logo|icon|badge|social|footer|header|tracking|sponsor|ad|advertisement)[^"']*?["']/i,
+    // Width and height being the same (square) in attributes
+    /width=["'](\d+)["'][^>]*height=["']\1["']/i,
+    // Sponsored content related classes/ids
+    /(class|id)=["'][^"']*?(?:sponsor|ad|advert|promotion|promo)[^"']*?["']/i
+  ];
+
+  if (attributePatterns.some(pattern => pattern.test(fullImgTag))) {
+    console.log(`Skipping due to problematic attributes: ${imageUrl}`);
+    return true;
+  }
+
+  return false;
+}
+
+// Helper function to validate an image URL more thoroughly
+async function validateImageUrl(imageUrl: string): Promise<boolean> {
+  try {
+    console.log(`Validating image: ${imageUrl}`);
+    
+    // Try to fetch the image headers to check dimensions and type
+    const response = await fetch(imageUrl, { 
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      console.log(`Image fetch failed with status: ${response.status}`);
+      return false;
+    }
+    
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.startsWith('image/')) {
+      console.log(`Skipping non-image content type: ${contentType}`);
+      return false;
+    }
+    
+    // Skip GIFs explicitly
+    if (contentType.includes('gif')) {
+      console.log(`Skipping GIF image: ${imageUrl}`);
+      return false;
+    }
+    
+    // Try to get dimensions if available
+    const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+    
+    // Skip tiny images (likely tracking pixels or icons)
+    if (contentLength > 0 && contentLength < 10000) { // Less than 10KB
+      console.log(`Skipping small file (${contentLength} bytes): ${imageUrl}`);
+      return false;
+    }
+    
+    // For more accurate dimension checking, we'd need to download and process the image
+    // This is a simplified check that works in many cases
+    const width = parseInt(response.headers.get('width') || '0', 10);
+    const height = parseInt(response.headers.get('height') || '0', 10);
+    
+    if (width > 0 && height > 0) {
+      // Skip tiny images
+      if (width < 100 || height < 100) {
+        console.log(`Skipping small image dimensions: ${width}x${height}`);
+        return false;
+      }
+      
+      // Skip square images (except very large ones which might be content)
+      if (width === height && width < 400) {
+        console.log(`Skipping square image: ${width}x${height}`);
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`Error validating image URL ${imageUrl}:`, error);
+    return false;
+  }
+}
+
+// Improved image generation with better prompt engineering
 async function generateImageWithOpenAI(summary: string): Promise<string | null> {
   try {
+    console.log("No suitable image found, generating one with OpenAI");
     const openai = new OpenAI({
       apiKey: Deno.env.get('OPENAI_API_KEY'),
     });
 
+    // Create a concise descriptive prompt based on the summary
+    const cleanSummary = summary.replace(/[^\w\s.,]/g, '').trim();
+    const prompt = `Create a professional, abstract representation for a newsletter with this theme: ${cleanSummary.substring(0, 100)}. Make it visually appealing with clean design, appropriate for a professional context. Do not include any text or logos in the image.`;
+    
+    console.log("OpenAI image generation prompt:", prompt);
+    
     const response = await openai.images.generate({
       model: "dall-e-3",
-      prompt: `Create an abstract representation of: ${summary}`,
+      prompt: prompt,
       n: 1,
       size: "1024x1024",
+      quality: "standard",
     });
 
-    return response.data[0]?.url || null;
+    const generatedImageUrl = response.data[0]?.url;
+    console.log("OpenAI image generated:", generatedImageUrl ? "Success" : "Failed");
+    return generatedImageUrl || null;
   } catch (error) {
-    console.error("Error generating image:", error);
+    console.error("Error generating image with OpenAI:", error);
     return null;
   }
 }
 
+// Fixed image storage function that properly returns public URLs
 async function storeImageInSupabase(imageUrl: string, userId: string, messageId: string): Promise<string | null> {
   try {
+    console.log(`Storing image in Supabase: ${imageUrl}`);
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const response = await fetch(imageUrl);
+    
+    // Fetch the image with proper headers
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
     const imageBlob = await response.blob();
     const filePath = `emails/${userId}/${messageId}.jpg`;
 
-    const { error, data } = await supabase.storage.from('email_images').upload(filePath, imageBlob, {
-      contentType: 'image/jpeg',
-    });
+    console.log(`Uploading image to path: ${filePath}, size: ${imageBlob.size} bytes`);
+    
+    // Upload the image with upsert to avoid conflicts
+    const { data, error } = await supabase.storage
+      .from('email_images')
+      .upload(filePath, imageBlob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
 
-    if (error) throw error;
-    return data?.publicUrl || null;
+    if (error) {
+      console.error("Supabase storage upload error:", error);
+      return null;
+    }
+    
+    // Get the public URL correctly after upload
+    const { data: publicUrlData } = supabase.storage
+      .from('email_images')
+      .getPublicUrl(filePath);
+    
+    if (!publicUrlData || !publicUrlData.publicUrl) {
+      console.error("Failed to get public URL for uploaded image");
+      return null;
+    }
+    
+    console.log("Supabase storage upload successful:", publicUrlData.publicUrl);
+    return publicUrlData.publicUrl;
   } catch (error) {
     console.error("Error storing image in Supabase:", error);
     return null;
@@ -777,18 +1016,28 @@ try {
 } catch (error) {
   console.error('Error parsing links JSON:', error);
 }
-          // Try extracting an image
+          // Try extracting an image with enhanced filtering
+          console.log("Attempting to extract an image from HTML content...");
           let imageUrl = await extractImageFromHTML(htmlBody);
+          console.log("Image extraction result:", imageUrl ? "Found suitable image" : "No suitable image found");
 
           // If no image found, generate one with OpenAI
           if (!imageUrl) {
+            console.log("No suitable image found in HTML, attempting to generate with OpenAI...");
             imageUrl = await generateImageWithOpenAI(contentSummary);
+            console.log("OpenAI image generation result:", imageUrl ? "Successfully generated image" : "Failed to generate image");
           }
 
-          // Store the image in Supabase
-          let storedImageUrl = imageUrl ? await storeImageInSupabase(imageUrl, userId, message.id) : null;
+          // Store the image in Supabase with improved error handling
+          let storedImageUrl = null;
+          if (imageUrl) {
+            storedImageUrl = await storeImageInSupabase(imageUrl, userId, message.id);
+            console.log("Image storage result:", storedImageUrl ? "Successfully stored image" : "Failed to store image");
+          } else {
+            console.log("No image URL available to store");
+          }
 
-          // Insert into database
+          // Insert into database with image URL (if available)
           const { error: insertError } = await supabase
             .from('newsletter_emails')
             .upsert({
@@ -813,7 +1062,7 @@ try {
           if (insertError) {
             console.error('Error inserting email:', insertError)
           } else {
-            console.log(`Successfully processed email ${message.id} for user ${userId}`)
+            console.log(`Successfully processed email ${message.id} for user ${userId}, image_url: ${storedImageUrl || 'null'}`)
           }
         }
       } catch (error) {

@@ -18,7 +18,7 @@ const openai = new OpenAI({
 const crawlKey = Deno.env.get('FC_YOUR_API_KEY') as string
 const app = new FirecrawlApp({apiKey: crawlKey});
 
-// Function to extract cover image from HTML content
+// Function to extract cover image from HTML content without using browser Image API
 async function extractCoverImageFromHTML(htmlContent: string): Promise<string | null> {
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
   let match;
@@ -124,99 +124,27 @@ async function extractCoverImageFromHTML(htmlContent: string): Promise<string | 
   // Sort candidates by score descending
   candidateImages.sort((a, b) => b.score - a.score);
   
-  // Take top 3 candidates and fetch actual dimensions if needed
-  const topCandidates = candidateImages.slice(0, 3);
-  
-  for (const candidate of topCandidates) {
-    try {
-      // Skip fetching if we already have dimensions
-      if (candidate.width && candidate.height) {
-        console.log(`Using image with known dimensions ${candidate.width}x${candidate.height}: ${candidate.url}`);
-        return candidate.url;
-      }
-      
-      // Need to fetch the image to check its actual size
-      console.log(`Fetching image to check dimensions: ${candidate.url}`);
-      const img = new Image();
-      
-      // Create a promise to wait for image load
-      const imageLoad = new Promise<{width: number, height: number}>((resolve, reject) => {
-        img.onload = () => resolve({ width: img.width, height: img.height });
-        img.onerror = () => reject(new Error('Failed to load image'));
-        
-        // Set a timeout to avoid hanging
-        setTimeout(() => reject(new Error('Image load timeout')), 5000);
-      });
-      
-      // Set the source to start loading
-      img.src = candidate.url;
-      
-      // Wait for the image to load
-      const { width, height } = await imageLoad;
-      
-      // Check if the image is large enough
-      if (width < 300 || height < 200) {
-        console.log(`Image too small (${width}x${height}): ${candidate.url}`);
-        continue;
-      }
-      
-      // Check aspect ratio
-      const aspectRatio = width / height;
-      if (aspectRatio < 0.7 || aspectRatio > 2.5) {
-        console.log(`Image aspect ratio unsuitable (${aspectRatio}): ${candidate.url}`);
-        continue;
-      }
-      
-      console.log(`Found suitable image (${width}x${height}): ${candidate.url}`);
-      return candidate.url;
-      
-    } catch (error) {
-      console.error(`Error checking image ${candidate.url}:`, error);
-      continue;
-    }
+  // Just take the highest scoring image with dimensions, or the highest scoring overall if none have dimensions
+  const bestCandidates = candidateImages.filter(img => img.width && img.height);
+  if (bestCandidates.length > 0) {
+    console.log(`Using best candidate with dimensions: ${bestCandidates[0].url}`);
+    return bestCandidates[0].url;
+  } else if (candidateImages.length > 0) {
+    console.log(`Using best candidate without dimensions: ${candidateImages[0].url}`);
+    return candidateImages[0].url;
   }
 
   // Look for open graph or Twitter card image meta tags as fallback
   console.log('No suitable images found, checking meta tags...');
   const metaTagRegex = /<meta[^>]+property=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["'][^>]*>/gi;
+  
+  // Reset the lastIndex property of the regex to start searching from the beginning
+  metaTagRegex.lastIndex = 0;
+  
   while ((match = metaTagRegex.exec(htmlContent)) !== null) {
     const metaImageUrl = match[1];
     console.log(`Found meta tag image: ${metaImageUrl}`);
-    
-    try {
-      // Fetch meta image to check dimensions
-      const img = new Image();
-      
-      // Create a promise to wait for image load
-      const imageLoad = new Promise<{width: number, height: number}>((resolve, reject) => {
-        img.onload = () => resolve({ width: img.width, height: img.height });
-        img.onerror = () => reject(new Error('Failed to load image'));
-        
-        // Set a timeout to avoid hanging
-        setTimeout(() => reject(new Error('Image load timeout')), 5000);
-      });
-      
-      // Set the source to start loading
-      img.src = metaImageUrl;
-      
-      // Wait for the image to load
-      const { width, height } = await imageLoad;
-      
-      // Check if the image is large enough
-      if (width < 300 || height < 200) {
-        console.log(`Meta image too small (${width}x${height}): ${metaImageUrl}`);
-        continue;
-      }
-      
-      console.log(`Using meta image (${width}x${height}): ${metaImageUrl}`);
-      return metaImageUrl;
-      
-    } catch (error) {
-      console.error(`Error checking meta image:`, error);
-      // Still return the meta image URL even if we couldn't check dimensions
-      // Meta tags are specifically for sharing, so they're likely good quality
-      return metaImageUrl;
-    }
+    return metaImageUrl; // Just use the first meta image found
   }
 
   return null; // No valid image found
