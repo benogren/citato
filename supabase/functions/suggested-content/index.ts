@@ -69,13 +69,43 @@ serve(async (req) => {
     
     console.log(`Found ${excludeUrls.length} URLs to exclude`);
     
+    // ADDED: Get newsletter data for content filtering
+    const { data: newsletters } = await adminClient
+      .from('newsletter_emails')
+      .select('subject, from_name, from_email')
+      .eq('user_id', userId);
+      
+    // Prepare title+author pairs and normalized subjects for matching
+    const titleAuthorPairs = [];
+    const normalizedSubjects = [];
+    
+    if (newsletters && newsletters.length > 0) {
+      for (const newsletter of newsletters) {
+        const subject = newsletter.subject?.toLowerCase().trim();
+        const author = (newsletter.from_name || newsletter.from_email)?.toLowerCase().trim();
+        
+        if (subject) {
+          normalizedSubjects.push(subject);
+          
+          if (author) {
+            titleAuthorPairs.push({
+              title: subject,
+              author: author
+            });
+          }
+        }
+      }
+    }
+    
+    console.log(`Found ${normalizedSubjects.length} newsletter subjects for filtering`);
+    
     // Get user's content embeddings
     const userEmbeddings = await getUserContentEmbeddings(adminClient, userId);
     console.log(`Got ${userEmbeddings.length} user embeddings`);
     
     if (userEmbeddings.length === 0) {
       console.log('No embeddings found, returning general recommendations');
-      return getGeneralRecommendations(adminClient, excludeUrls);
+      return getFilteredRecommendations(adminClient, excludeUrls, normalizedSubjects, titleAuthorPairs);
     }
     
     // Create a centroid of user embeddings - exactly like in your API
@@ -96,15 +126,18 @@ serve(async (req) => {
       
       if (error) {
         console.error('Error fetching suggested content:', error);
-        return getGeneralRecommendations(adminClient, excludeUrls);
+        return getFilteredRecommendations(adminClient, excludeUrls, normalizedSubjects, titleAuthorPairs);
       }
       
       console.log(`Found ${suggestedContent?.length || 0} matching content items`);
       
       // Filter out any excluded URLs that might have slipped through
-      const filteredContent = (suggestedContent || []).filter(
-        (item) => !excludeUrls.includes(item.url)
-      ).slice(0, 20);
+      const filteredContent = filterSuggestedContent(
+        suggestedContent || [], 
+        excludeUrls, 
+        normalizedSubjects, 
+        titleAuthorPairs
+      );
       
       console.log(`Returning ${filteredContent.length} filtered content items`);
       
@@ -114,7 +147,7 @@ serve(async (req) => {
       );
     } catch (error) {
       console.error('Error generating suggestions:', error);
-      return getGeneralRecommendations(adminClient, excludeUrls);
+      return getFilteredRecommendations(adminClient, excludeUrls, normalizedSubjects, titleAuthorPairs);
     }
   } catch (error) {
     console.error('Error in suggested-content function:', error);
@@ -125,12 +158,127 @@ serve(async (req) => {
   }
 });
 
-// Helper function to get general recommendations (fallback)
+// ADDED: New function for filtering based on title and author
+function filterSuggestedContent(
+  suggestions, 
+  excludeUrls = [], 
+  existingSubjects = [], 
+  titleAuthorPairs = []
+) {
+  // First filter by URL
+  let filtered = suggestions.filter(item => !excludeUrls.includes(item.url));
+  
+  // Then filter by title and author similarity
+  filtered = filtered.filter(item => {
+    const title = item.title?.toLowerCase().trim() || '';
+    const author = item.author?.toLowerCase().trim() || '';
+    
+    if (!title) return true; // Keep items without titles
+    
+    // 1. Check for title+author exact matches (highest confidence)
+    for (const pair of titleAuthorPairs) {
+      if (isTitleSimilar(title, pair.title) && 
+          (author.includes(pair.author) || pair.author.includes(author))) {
+        console.log(`Filtered out "${title}" by ${author} - matches existing newsletter`);
+        return false;
+      }
+    }
+    
+    // 2. Check for title similarity only
+    for (const subject of existingSubjects) {
+      if (isTitleSimilar(title, subject)) {
+        console.log(`Filtered out "${title}" - similar to existing subject "${subject}"`);
+        return false;
+      }
+    }
+    
+    return true;
+  });
+  
+  // Return top 10 results
+  return filtered.slice(0, 10);
+}
+
+// ADDED: Helper function to determine if titles are similar
+function isTitleSimilar(title1, title2) {
+  // Clean the titles
+  const clean1 = title1.replace(/^(re:|fwd:|fw:)\s*/i, '').trim();
+  const clean2 = title2.replace(/^(re:|fwd:|fw:)\s*/i, '').trim();
+  
+  // 1. Exact match
+  if (clean1 === clean2) return true;
+  
+  // 2. Substring match for longer titles
+  if (clean1.length > 15 && clean2.length > 15) {
+    if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+  }
+  
+  // 3. Word-based similarity
+  const words1 = clean1.split(/\s+/).filter(w => w.length > 3);
+  const words2 = clean2.split(/\s+/).filter(w => w.length > 3);
+  
+  if (words1.length === 0 || words2.length === 0) return false;
+  
+  // 3a. Calculate Jaccard similarity
+  let intersection = 0;
+  for (const word of words1) {
+    if (words2.includes(word)) intersection++;
+  }
+  
+  const union = words1.length + words2.length - intersection;
+  const similarity = union > 0 ? intersection / union : 0;
+  
+  if (similarity > 0.4) return true;
+  
+  // 3b. Check for significant common words
+  const significantWords1 = words1.filter(w => w.length > 5);
+  const significantWords2 = words2.filter(w => w.length > 5);
+  
+  if (significantWords1.length > 0 && significantWords2.length > 0) {
+    let commonSignificantCount = 0;
+    for (const word of significantWords1) {
+      if (significantWords2.includes(word)) commonSignificantCount++;
+    }
+    
+    if (commonSignificantCount >= 2) return true;
+  }
+  
+  return false;
+}
+
+// MODIFIED: Added newsletter subject filtering to fallback recommendations
+async function getFilteredRecommendations(client, excludeUrls = [], subjects = [], titleAuthorPairs = []) {
+  console.log('Using filtered general recommendations fallback');
+  const { data: generalSuggestions } = await client
+    .from('suggested')
+    .select('id, url, title, author, ai_summary, created_at, image_url')
+    .eq('status', 'processed')
+    .not('url', 'in', excludeUrls.length > 0 ? excludeUrls : [''])
+    .order('created_at', { ascending: false })
+    .limit(40); // Get extra for filtering
+  
+  // Apply the same content filtering
+  const filteredSuggestions = filterSuggestedContent(
+    generalSuggestions || [],
+    excludeUrls,
+    subjects,
+    titleAuthorPairs
+  );
+  
+  console.log(`Returning ${filteredSuggestions.length} filtered general recommendations`);
+  
+  return new Response(
+    JSON.stringify(filteredSuggestions),
+    { headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
+// Original helper function for general recommendations (now replaced)
 async function getGeneralRecommendations(client, excludeUrls = []) {
   console.log('Using general recommendations fallback');
   const { data: generalSuggestions } = await client
     .from('suggested')
-    .select('id, url, title, author, ai_summary, created_at')
+    .select('id, url, title, author, ai_summary, created_at, image_url')
     .eq('status', 'processed')
     .not('url', 'in', excludeUrls.length > 0 ? excludeUrls : [''])
     .order('created_at', { ascending: false })

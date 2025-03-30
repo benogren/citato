@@ -65,7 +65,7 @@ async function fetchTodaysEmails(pageUserId: string): Promise<NewsletterEmail[]>
     
     if (error) throw error
         return data || []
-    }
+}
 
 export default async function Roundup({ pageUserId }: { pageUserId: string }) {
   //  const emails = await fetchTodaysEmails(pageUserId);

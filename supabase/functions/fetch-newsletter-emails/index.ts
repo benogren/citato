@@ -36,6 +36,85 @@ export async function cleanEmailContent(emailData: EmailDataItem[]) {
   });
 }
 
+// New function to resolve redirect URLs to their actual destinations
+async function resolveRedirectUrl(url: string): Promise<string> {
+  try {
+    console.log(`Resolving redirect for: ${url}`);
+    
+    // Try to extract the destination from known redirect patterns first
+    // CustomerIO pattern
+    if (url.includes('customeriomail.com')) {
+      const match = url.match(/href":"([^"]+)"/);
+      if (match && match[1]) {
+        const extractedUrl = match[1].replace(/\\u0026/g, '&');
+        console.log(`Extracted URL from CustomerIO pattern: ${extractedUrl}`);
+        return extractedUrl;
+      }
+    }
+    
+    // Mailchimp pattern
+    if (url.includes('mailchi.mp') || url.includes('list-manage.com')) {
+      const parts = url.split('?');
+      if (parts.length > 1) {
+        const params = new URLSearchParams(parts[1]);
+        const redirectParam = params.get('u') || params.get('url');
+        if (redirectParam) {
+          const decodedUrl = decodeURIComponent(redirectParam);
+          console.log(`Extracted URL from Mailchimp pattern: ${decodedUrl}`);
+          return decodedUrl;
+        }
+      }
+    }
+    
+    // Follow redirects for other URLs
+    const response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      },
+      // Set a timeout to avoid hanging on bad URLs
+      signal: AbortSignal.timeout(5000)
+    });
+    
+    // Get the final URL after all redirects
+    const finalUrl = response.url;
+    
+    // Clean up tracking parameters if needed
+    const cleanUrl = removeTrackingParams(finalUrl);
+    
+    console.log(`Resolved redirect: ${url} -> ${cleanUrl}`);
+    return cleanUrl;
+  } catch (error) {
+    console.error(`Error resolving redirect for ${url}:`, error);
+    return url; // Return original URL if resolution fails
+  }
+}
+
+// Helper function to remove common tracking parameters
+function removeTrackingParams(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    
+    // List of common tracking parameters to remove
+    const trackingParams = [
+      'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+      'fbclid', 'gclid', 'mc_cid', 'mc_eid', 'yclid', 'ref', 'source',
+      '_hsenc', '_hsmi', 'hsCtaTracking', '_ga'
+    ];
+    
+    // Remove tracking parameters
+    trackingParams.forEach(param => {
+      urlObj.searchParams.delete(param);
+    });
+    
+    return urlObj.toString();
+  } catch (error) {
+    console.error('Error cleaning URL:', error);
+    return url; // Return original URL if cleaning fails
+  }
+}
+
 // Improved image extraction with better filtering
 async function extractImageFromHTML(htmlContent: string): Promise<string | null> {
   console.log("Starting enhanced image extraction from HTML content");
@@ -197,7 +276,7 @@ function shouldSkipImage(fullImgTag: string, imageUrl: string): boolean {
 
   // Check attributes in the img tag
   const attributePatterns = [
-    // Classes, IDs or alt text that suggest avatar, logo, icon, etc.
+    // Classes, IDs or alt text that suggest avatar, logo, icon, badge, social, footer, header, tracking, sponsor, ad, advertisement
     /(class|id|alt)=["'][^"']*?(?:avatar|logo|icon|badge|social|footer|header|tracking|sponsor|ad|advertisement)[^"']*?["']/i,
     // Width and height being the same (square) in attributes
     /width=["'](\d+)["'][^>]*height=["']\1["']/i,
@@ -465,6 +544,175 @@ async function createGmailClient(userId: string, accessToken: string, refreshTok
   }
 }
 
+// Updated function to extract links from HTML and resolve redirects
+async function extractLinksFromHTML(htmlContent: string) {
+  // Regular expression to match <a> tags and extract href and text content
+  const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"(?:\s+[^>]*?)?>([^<]*)<\/a>/gi;
+  const validLinks = [];
+  let match;
+
+  // Common newsletter links to filter out
+  const commonUnwantedTexts = [
+    // Navigation and management links
+    'view online', 'view in browser', 'view as webpage', 
+    'sign up', 'subscribe', 'unsubscribe', 'manage preferences',
+    'privacy policy', 'terms of service', 'contact us', 'forward to a friend',
+    'update preferences', 'email preferences', 'email settings', 'browser',
+    'view this email in your browser', 'preferences', 'privacy', 'terms',
+    'here', 'click here', 'read more', 'learn more', 'more info',
+    'advertise', 'careers', 'shop', 'faq', 'help', 'support',
+    
+    // Event signup and promotional content
+    'register', 'registration', 'sign me up', 'join now', 'join us', 'register now',
+    'save my spot', 'reserve', 'reserve my spot', 'reserve your spot', 'secure your spot',
+    'free trial', 'free download', 'free ebook', 'free guide', 'free workshop',
+    'limited time', 'special offer', 'learn more', 'find out more', 
+    'giveaway', 'sweepstakes', 'contest', 'drawing', 'raffle',
+    'webinar', 'workshop', 'masterclass', 'training', 'seminar',
+    'download now', 'get it now', 'get started', 'start now', 'try it free',
+    'claim your', 'claim now', 'claim my', 'rsvp'
+  ];
+
+  while ((match = linkRegex.exec(htmlContent)) !== null) {
+    const url = match[1].trim();
+    const title = match[2].trim();
+    
+    // Skip links with common unwanted text (case insensitive)
+    const titleLower = title.toLowerCase();
+    
+    // Skip single-word generic link texts
+    if (title.length < 5 && !title.includes(" ")) {
+      continue;
+    }
+    
+    // Skip all-caps navigation links (common in footers)
+    if (title === title.toUpperCase() && title.length < 15) {
+      continue;
+    }
+    
+    if (commonUnwantedTexts.some(unwanted => titleLower.includes(unwanted.toLowerCase()))) {
+      continue;
+    }
+    
+    // Skip promotional titles with common phrases
+    if (titleLower.includes("free") || 
+        titleLower.includes("sign up") || 
+        titleLower.includes("register") ||
+        titleLower.includes("event") ||
+        titleLower.includes("offer") ||
+        titleLower.includes("save") ||
+        titleLower.includes("discount") ||
+        titleLower.includes("promotion") ||
+        titleLower.includes("trial") ||
+        titleLower.includes("limited time") ||
+        titleLower.includes("webinar") ||
+        titleLower.includes("workshop") ||
+        titleLower.includes("giveaway") ||
+        titleLower.includes("download") ||
+        titleLower.includes("joining") ||
+        titleLower.includes("join us") ||
+        titleLower.includes("click here")) {
+      continue;
+    }
+      
+    // Filter out unwanted links by URL pattern
+    if (url && 
+      !url.startsWith("#") && 
+      !url.startsWith("mailto:") && 
+      !url.startsWith("javascript:") && 
+      !url.includes("/contact") && 
+      !url.includes("/about") &&
+      !url.includes("/privacy") &&
+      !url.includes("/terms") &&
+      !url.endsWith(".dtd") &&
+      !url.includes("/DTD/") &&
+      !url.includes("w3.org/TR/") &&
+      !url.includes("schema.org") &&
+      !url.includes("unsubscribe") &&
+      !url.includes("manage-preferences") &&
+      !url.includes("view-in-browser") &&
+      !url.includes("view-online") &&
+      !url.includes("browser-view") &&
+      !url.includes("preferences") && 
+      !url.includes("register") &&
+      !url.includes("signup") &&
+      !url.includes("sign-up") &&
+      !url.includes("giveaway") &&
+      !url.includes("offer") &&
+      !url.includes("register") &&
+      !url.includes("event") &&
+      !url.includes("free-") &&
+      !url.includes("free_") &&
+      !url.includes("download") &&
+      !url.includes("webinar") &&
+      !url.includes("training") &&
+      !url.includes("workshop") &&
+      !url.includes("coupon") &&
+      !url.includes("discount") &&
+      !url.includes("promo") &&
+      !url.includes("deal") &&
+      !url.includes("sale") &&
+      !url.includes("trial") &&
+      !url.includes("demo") &&
+      !url.includes("rsvp") &&
+      !url.includes("/faq") &&
+      !url.includes("/help") &&
+      !url.includes("/careers") &&
+      !url.includes("/shop") &&
+      !url.includes("/advertise") &&
+      !url.includes("/support")) {
+      
+      // Additional checks for link quality
+      if (title && title.length > 2) {
+        // Skip links with too many query parameters (likely tracking links)
+        const queryParamsCount = (url.match(/&/g) || []).length;
+        if (queryParamsCount > 3) {
+          continue;
+        }
+        
+        validLinks.push({
+          title: title || null,
+          url: url
+        });
+      }
+    }
+  }
+
+  // Limit to 30 links to avoid excessive redirect resolution
+  const limitedLinks = validLinks.slice(0, 30);
+  
+  // Resolve all redirect URLs in parallel with a concurrency limit
+  const concurrencyLimit = 5; // Process 5 URLs at a time to avoid rate limits
+  const resolvedLinks = [];
+  
+  for (let i = 0; i < limitedLinks.length; i += concurrencyLimit) {
+    const batch = limitedLinks.slice(i, i + concurrencyLimit);
+    const batchResults = await Promise.all(
+      batch.map(async (link) => {
+        try {
+          const resolvedUrl = await resolveRedirectUrl(link.url);
+          return {
+            title: link.title,
+            url: resolvedUrl
+          };
+        } catch (error) {
+          console.error(`Error resolving URL ${link.url}:`, error);
+          return link; // Keep original if resolution fails
+        }
+      })
+    );
+    
+    resolvedLinks.push(...batchResults);
+    
+    // Short delay between batches to avoid hitting rate limits
+    if (i + concurrencyLimit < limitedLinks.length) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+
+  return JSON.stringify({ links: resolvedLinks });
+}
+
 serve(async (req: Request) => {
   console.log("Function started")
   
@@ -707,315 +955,156 @@ serve(async (req: Request) => {
             max_tokens: 200, // Adjust based on expected length of response
           });
 
-        const fullSummary = completionKeyPoints.choices[0].message.content;
+          const fullSummary = completionKeyPoints.choices[0].message.content;
 
-        //find links!
-        // Check for domain patterns that are likely tracking or newsletter-specific
-  function isTrackingOrNewsletterDomain(url) {
-    const trackingDomains = [
-      'links.morningbrew.com',
-      'email.morningbrew.com',
-      'click.e.', // Common email tracking pattern
-      'links.e.',
-      'track.',
-      'click.',
-      'email-tracking',
-      'mailtrack',
-      'mailchimp',
-      'campaign-',
-      'cta.',
-      'r.mail.',
-      'esp.mail',
-      'click2.',
-      'links.e.',
-      'email.e.',
-      'mail.e.'
-    ];
-    
-    return trackingDomains.some(domain => url.includes(domain));
-  }function extractLinksFromHTML(htmlContent) {
-  // Regular expression to match <a> tags and extract href and text content
-  const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"(?:\s+[^>]*?)?>([^<]*)<\/a>/gi;
-  const links = [];
-  let match;
+          // Extract and resolve links - Now async!
+          const processedContent = await extractLinksFromHTML(htmlBody);
 
-  // Common newsletter links to filter out
-  const commonUnwantedTexts = [
-    // Navigation and management links
-    'view online', 'view in browser', 'view as webpage', 
-    'sign up', 'subscribe', 'unsubscribe', 'manage preferences',
-    'privacy policy', 'terms of service', 'contact us', 'forward to a friend',
-    'update preferences', 'email preferences', 'email settings', 'browser',
-    'view this email in your browser', 'preferences', 'privacy', 'terms',
-    'here', 'click here', 'read more', 'learn more', 'more info',
-    'advertise', 'careers', 'shop', 'faq', 'help', 'support',
-    
-    // Event signup and promotional content
-    'register', 'registration', 'sign me up', 'join now', 'join us', 'register now',
-    'save my spot', 'reserve', 'reserve my spot', 'reserve your spot', 'secure your spot',
-    'free trial', 'free download', 'free ebook', 'free guide', 'free workshop',
-    'limited time', 'special offer', 'learn more', 'find out more', 
-    'giveaway', 'sweepstakes', 'contest', 'drawing', 'raffle',
-    'webinar', 'workshop', 'masterclass', 'training', 'seminar',
-    'download now', 'get it now', 'get started', 'start now', 'try it free',
-    'claim your', 'claim now', 'claim my', 'rsvp'
-  ];
-
-  while ((match = linkRegex.exec(htmlContent)) !== null) {
-    const url = match[1].trim();
-    const title = match[2].trim();
-    
-          // Skip links with common unwanted text (case insensitive)
-    const titleLower = title.toLowerCase();
-    
-    // Skip single-word generic link texts
-    if (title.length < 5 && !title.includes(" ")) {
-      continue;
-    }
-    
-    // Skip all-caps navigation links (common in footers)
-    if (title === title.toUpperCase() && title.length < 15) {
-      continue;
-    }
-    
-    if (commonUnwantedTexts.some(unwanted => titleLower.includes(unwanted.toLowerCase()))) {
-      continue;
-    }
-    
-    // Skip promotional titles with common phrases
-    if (titleLower.includes("free") || 
-        titleLower.includes("sign up") || 
-        titleLower.includes("register") ||
-        titleLower.includes("event") ||
-        titleLower.includes("offer") ||
-        titleLower.includes("save") ||
-        titleLower.includes("discount") ||
-        titleLower.includes("promotion") ||
-        titleLower.includes("trial") ||
-        titleLower.includes("limited time") ||
-        titleLower.includes("webinar") ||
-        titleLower.includes("workshop") ||
-        titleLower.includes("giveaway") ||
-        titleLower.includes("download") ||
-        titleLower.includes("joining") ||
-        titleLower.includes("join us") ||
-        titleLower.includes("click here")) {
-      continue;
-    }
-      
-      // Filter out unwanted links by URL pattern
-      if (url && 
-        !url.startsWith("#") && 
-        !url.startsWith("mailto:") && 
-        !url.startsWith("javascript:") && 
-        !url.includes("/contact") && 
-        !url.includes("/about") &&
-        !url.includes("/privacy") &&
-        !url.includes("/terms") &&
-        !url.endsWith(".dtd") &&
-        !url.includes("/DTD/") &&
-        !url.includes("w3.org/TR/") &&
-        !url.includes("schema.org") &&
-        !url.includes("unsubscribe") &&
-        !url.includes("manage-preferences") &&
-        !url.includes("view-in-browser") &&
-        !url.includes("view-online") &&
-        !url.includes("browser-view") &&
-        !url.includes("preferences") && 
-        !url.includes("register") &&
-        !url.includes("signup") &&
-        !url.includes("sign-up") &&
-        !url.includes("giveaway") &&
-        !url.includes("offer") &&
-        !url.includes("register") &&
-        !url.includes("event") &&
-        !url.includes("free-") &&
-        !url.includes("free_") &&
-        !url.includes("download") &&
-        !url.includes("webinar") &&
-        !url.includes("training") &&
-        !url.includes("workshop") &&
-        !url.includes("coupon") &&
-        !url.includes("discount") &&
-        !url.includes("promo") &&
-        !url.includes("deal") &&
-        !url.includes("sale") &&
-        !url.includes("trial") &&
-        !url.includes("demo") &&
-        !url.includes("rsvp") &&
-        !url.includes("/faq") &&
-        !url.includes("/help") &&
-        !url.includes("/careers") &&
-        !url.includes("/shop") &&
-        !url.includes("/advertise") &&
-        !url.includes("/support")) {
-        
-        // Additional checks for link quality
-        if (title && title.length > 2) {
-          // Skip links with too many query parameters (likely tracking links)
-          const queryParamsCount = (url.match(/&/g) || []).length;
-          if (queryParamsCount > 3) {
-            continue;
-          }
-          
-          links.push({
-            title: title || null,
-            url: url
-          });
-        }
-      }
-    }
-
-    return JSON.stringify({ links });
-  }
-
-        // Use the function (no need for await since it's synchronous now)
-        const processedContent = extractLinksFromHTML(htmlBody);
-
-        const completionLinks = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { 
-              role: "system", 
-              content: `You will be provided with a JSON object containing extracted links.  
-              Your task is to format them properly and categorize them when possible.
-              
-              ### **Instructions:**
-              - Ensure links are in **valid JSON format**.
-              - If a title is missing, return **null** instead of guessing.
-              - Categorize links into:
-                - **Videos** (YouTube, Vimeo, etc.)
-                - **News & Articles** (Bloomberg, NYT, WaPo, etc.)
-                - **Author's Own Content** (self-referencing blog links)
-                - **Other**
-              - Return JSON output in this format:
-              
+          const completionLinks = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { 
+                role: "system", 
+                content: `You will be provided with a JSON object containing extracted links.  
+                Your task is to format them properly and categorize them when possible.
+                
+                ### **Instructions:**
+                - Ensure links are in **valid JSON format**.
+                - If a title is missing, return **null** instead of guessing.
+                - Categorize links into:
+                  - **Videos** (YouTube, Vimeo, etc.)
+                  - **News & Articles** (Bloomberg, NYT, WaPo, etc.)
+                  - **Author's Own Content** (self-referencing blog links)
+                  - **Other**
+                - Return JSON output in this format:
+                
+                {
+                  "videos": [ { "title": "Example Video", "url": "https://youtube.com/example" } ],
+                  "news_articles": [ { "title": "Example Article", "url": "https://bloomberg.com/example" } ],
+                  "author_content": [ { "title": "Author's Blog Post", "url": "https://authorwebsite.com/post" } ],
+                  "other": [ { "title": "Miscellaneous Link", "url": "https://other.com/example" } ]
+                }
+                
+                - If no links exist in a category, return an empty array **[]**.
+                `,
+              },
               {
-                "videos": [ { "title": "Example Video", "url": "https://youtube.com/example" } ],
-                "news_articles": [ { "title": "Example Article", "url": "https://bloomberg.com/example" } ],
-                "author_content": [ { "title": "Author's Blog Post", "url": "https://authorwebsite.com/post" } ],
-                "other": [ { "title": "Miscellaneous Link", "url": "https://other.com/example" } ]
-              }
+                role: "user",
+                content: processedContent,
+              },
+            ],
+            response_format: { type: "json_object" }, // Ensure structured JSON output
+          });
+
+          const foundLinks = completionLinks.choices[0].message.content;
+
+          // Parse the links JSON
+          let parsedLinks;
+          try {
+            // Parse the JSON string into an object
+            parsedLinks = JSON.parse(foundLinks);
+            console.log('Successfully parsed links:', parsedLinks);
+
+            // Initialize suggestedItems array
+            const suggestedItems = [];
+            
+            // Add news_articles if available
+            if (parsedLinks && parsedLinks.news_articles && parsedLinks.news_articles.length > 0) {
+              console.log(`Found ${parsedLinks.news_articles.length} news articles to add to suggested table`);
               
-              - If no links exist in a category, return an empty array **[]**.
-              `,
-            },
-            {
-              role: "user",
-              content: processedContent,
-            },
-          ],
-          response_format: { type: "json_object" }, // Ensure structured JSON output
-        });
-
-        const foundLinks = completionLinks.choices[0].message.content;
-
-        // Parse the links JSON
-        let parsedLinks;
-try {
-  // Parse the JSON string into an object
-  parsedLinks = JSON.parse(foundLinks);
-  console.log('Successfully parsed links:', parsedLinks);
-
-  // Initialize suggestedItems array
-  const suggestedItems = [];
-  
-  // Add news_articles if available
-  if (parsedLinks && parsedLinks.news_articles && parsedLinks.news_articles.length > 0) {
-    console.log(`Found ${parsedLinks.news_articles.length} news articles to add to suggested table`);
-    
-    const newsItems = parsedLinks.news_articles.map((article: { title: string; url: string }) => ({
-      title: article.title,
-      url: article.url,
-      type: 'news_article',
-      created_at: new Date().toISOString()
-    }));
-    
-    suggestedItems.push(...newsItems);
-  }
-  
-  // Add videos if available
-  if (parsedLinks && parsedLinks.videos && parsedLinks.videos.length > 0) {
-    console.log(`Found ${parsedLinks.videos.length} videos to add to suggested table`);
-    
-    const videoItems = parsedLinks.videos.map((video: { title: string; url: string }) => ({
-      title: video.title,
-      url: video.url,
-      type: 'video',
-      created_at: new Date().toISOString()
-    }));
-    
-    suggestedItems.push(...videoItems);
-  }
-  
-  // Add author content if available
-  if (parsedLinks && parsedLinks.author_content && parsedLinks.author_content.length > 0) {
-    console.log(`Found ${parsedLinks.author_content.length} author content items to add to suggested table`);
-    
-    const authorItems = parsedLinks.author_content.map((content: { title: string; url: string }) => ({
-      title: content.title,
-      url: content.url,
-      type: 'author_content',
-      created_at: new Date().toISOString()
-    }));
-    
-    suggestedItems.push(...authorItems);
-  }
-  
-  // Add other links if available
-  if (parsedLinks && parsedLinks.other && parsedLinks.other.length > 0) {
-    console.log(`Found ${parsedLinks.other.length} other links to add to suggested table`);
-    
-    const otherItems = parsedLinks.other.map((item: { title: string; url: string }) => ({
-      title: item.title,
-      url: item.url,
-      type: 'other',
-      created_at: new Date().toISOString()
-    }));
-    
-    suggestedItems.push(...otherItems);
-  }
-    
-    // Insert into the suggested table
-    if (suggestedItems.length > 0) {
-      console.log(`Preparing to insert ${suggestedItems.length} total items into suggested table`);
-      
-      // Option 1: First check if URLs already exist, then only insert new ones
-      const urls = suggestedItems.map(item => item.url);
-      const { data: existingUrls, error: checkError } = await supabase
-        .from('suggested')
-        .select('url')
-        .in('url', urls);
-      
-      if (checkError) {
-        console.error('Error checking existing URLs:', checkError);
-      } else {
-        // Filter out items that already exist
-        const existingUrlSet = new Set(existingUrls?.map(item => item.url) || []);
-        const newItems = suggestedItems.filter(item => !existingUrlSet.has(item.url));
-        
-        if (newItems.length > 0) {
-          console.log(`Found ${newItems.length} new items to insert`);
-          const { data: insertedData, error: insertError } = await supabase
-            .from('suggested')
-            .insert(newItems)
-            .select();
-          
-          if (insertError) {
-            console.error('Error inserting into suggested table:', insertError);
-          } else {
-            console.log(`Successfully added ${insertedData?.length || 0} items to suggested table`);
+              const newsItems = parsedLinks.news_articles.map((article: { title: string; url: string }) => ({
+                title: article.title,
+                url: article.url,
+                type: 'news_article',
+                created_at: new Date().toISOString()
+              }));
+              
+              suggestedItems.push(...newsItems);
+            }
+            
+            // Add videos if available
+            if (parsedLinks && parsedLinks.videos && parsedLinks.videos.length > 0) {
+              console.log(`Found ${parsedLinks.videos.length} videos to add to suggested table`);
+              
+              const videoItems = parsedLinks.videos.map((video: { title: string; url: string }) => ({
+                title: video.title,
+                url: video.url,
+                type: 'video',
+                created_at: new Date().toISOString()
+              }));
+              
+              suggestedItems.push(...videoItems);
+            }
+            
+            // Add author content if available
+            if (parsedLinks && parsedLinks.author_content && parsedLinks.author_content.length > 0) {
+              console.log(`Found ${parsedLinks.author_content.length} author content items to add to suggested table`);
+              
+              const authorItems = parsedLinks.author_content.map((content: { title: string; url: string }) => ({
+                title: content.title,
+                url: content.url,
+                type: 'author_content',
+                created_at: new Date().toISOString()
+              }));
+              
+              suggestedItems.push(...authorItems);
+            }
+            
+            // Add other links if available
+            if (parsedLinks && parsedLinks.other && parsedLinks.other.length > 0) {
+              console.log(`Found ${parsedLinks.other.length} other links to add to suggested table`);
+              
+              const otherItems = parsedLinks.other.map((item: { title: string; url: string }) => ({
+                title: item.title,
+                url: item.url,
+                type: 'other',
+                created_at: new Date().toISOString()
+              }));
+              
+              suggestedItems.push(...otherItems);
+            }
+              
+            // Insert into the suggested table
+            if (suggestedItems.length > 0) {
+              console.log(`Preparing to insert ${suggestedItems.length} total items into suggested table`);
+              
+              // Option 1: First check if URLs already exist, then only insert new ones
+              const urls = suggestedItems.map(item => item.url);
+              const { data: existingUrls, error: checkError } = await supabase
+                .from('suggested')
+                .select('url')
+                .in('url', urls);
+              
+              if (checkError) {
+                console.error('Error checking existing URLs:', checkError);
+              } else {
+                // Filter out items that already exist
+                const existingUrlSet = new Set(existingUrls?.map(item => item.url) || []);
+                const newItems = suggestedItems.filter(item => !existingUrlSet.has(item.url));
+                
+                if (newItems.length > 0) {
+                  console.log(`Found ${newItems.length} new items to insert`);
+                  const { data: insertedData, error: insertError } = await supabase
+                    .from('suggested')
+                    .insert(newItems)
+                    .select();
+                  
+                  if (insertError) {
+                    console.error('Error inserting into suggested table:', insertError);
+                  } else {
+                    console.log(`Successfully added ${insertedData?.length || 0} items to suggested table`);
+                  }
+                } else {
+                  console.log('All URLs already exist in the table, nothing to insert');
+                }
+              }
+            } else {
+              console.log('No items found to add to suggested table');
+            }
+          } catch (error) {
+            console.error('Error parsing links JSON:', error);
           }
-        } else {
-          console.log('All URLs already exist in the table, nothing to insert');
-        }
-      }
-    } else {
-      console.log('No items found to add to suggested table');
-    }
-} catch (error) {
-  console.error('Error parsing links JSON:', error);
-}
+
           // Try extracting an image with enhanced filtering
           console.log("Attempting to extract an image from HTML content...");
           let imageUrl = await extractImageFromHTML(htmlBody);

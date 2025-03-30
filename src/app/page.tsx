@@ -3,10 +3,10 @@ import Hero from '@/components/marketing/hero';
 import CTA from '@/components/marketing/CTA';
 // import Pricing from '@/components/marketing/pricing';
 // import Testimonials from '@/components/marketing/testimonials';
-import Problem from '@/components/marketing/problem';
-import Transformation from '@/components/marketing/transform';
+// import Problem from '@/components/marketing/problem';
+// import Transformation from '@/components/marketing/transform';
 import Features from '@/components/marketing/features';
-import FAQ from '@/components/marketing/FAQ';
+// import FAQ from '@/components/marketing/FAQ';
 import Navbar from '@/components/marketing/navbar';
 
 export default async function Home() {
@@ -24,12 +24,12 @@ export default async function Home() {
       
       <main>
         <Hero />
-        <Problem />
-        <Transformation />
+        {/* <Problem /> */}
+        {/* <Transformation /> */}
         <Features />
         {/* <Testimonials /> */}
         {/* <Pricing /> */}
-        <FAQ />
+        {/* <FAQ /> */}
         <CTA />
       </main>
     </div>

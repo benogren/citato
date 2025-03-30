@@ -29,7 +29,12 @@ export default function Features() {
       name: 'Key Takeaways',
       description: 'When you decide to read the full content, citato.ai generates concise takeaways and highlights important links, making it easy to retain and share key insights.',
       icon: faBolt,
-    }
+    },
+    {
+      name: 'Recommended Articles',
+      description: 'Get persobalized recommendations based on your reading habits and interests. Discover new sources and topics that align with your preferences.',
+      icon: faMagicWandSparkles,
+    },
   ];
 
   return (

@@ -328,7 +328,7 @@ serve(async (req) => {
       .eq('status', 'processing')
       .eq('type', 'news_article')
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(5);
 
     if (fetchError) {
       throw fetchError
@@ -350,6 +350,18 @@ serve(async (req) => {
 
         const scrapeResponse = await app.scrapeUrl(suggested.url, {
             formats: ['markdown', 'html'],
+            'excludeTags': [ 
+              '.ad', '#ad', '#ad-container', '#title-recommended', '#recommended-videos', '#pre-content', '#recommended-item',
+              '.related-articles', '.related-posts', '.sidebar', '.footer', '.comments', '.share-buttons',
+              '.social-share', '.newsletter-signup', '.popup', '.modal', '.cookie-consent', '.tracking-pixel',
+              '.tracking-image', '.tracking-script', '.tracking-iframe', '.tracking-link', '.tracking-button',
+              '.tracking-form', '.tracking-widget', '.tracking-ad', '.tracking-banner', '.tracking-popup',
+              '.tracking-modal', '.tracking-footer', '.tracking-header', '.tracking-sidebar', '.tracking-content',
+              '.tracking-article', '.tracking-post', '.tracking-page', '.tracking-site', '.tracking-domain',
+              '.tracking-url', '.tracking-parameter', '.tracking-query', '.tracking-cookie', '.tracking-session',
+              '.tracking-user', '.tracking-device', '.tracking-browser', '.tracking-os', '.tracking-ip',
+              '#show-comments', '#comments', '#comment-section', '#comment-form', '#comment-box'
+            ],
         });
         
         if (!scrapeResponse.success) {
